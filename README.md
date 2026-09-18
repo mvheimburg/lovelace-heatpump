@@ -1,3 +1,5 @@
+<img src="docs/icon.png" alt="" width="96" align="right">
+
 # Heat Pump Card
 
 A Home Assistant dashboard card for [myVAILLANT / myPyllant](https://github.com/signalkraft/mypyllant-component): room comfort, hot water and measured energy efficiency. No companion integration or template sensors required.
