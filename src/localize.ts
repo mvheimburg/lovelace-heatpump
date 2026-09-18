@@ -1,4 +1,28 @@
+import type { HomeAssistant } from "./types";
+export function language(
+  hass?: Pick<HomeAssistant, "language" | "locale">,
+): string {
+  const value = (hass?.language || hass?.locale?.language || "en")
+    .replace(/_/g, "-")
+    .toLowerCase();
+  if (/^(nb|nn|no)(-|$)/.test(value)) return "nb-NO";
+  try {
+    return Intl.getCanonicalLocales(value)[0] ?? "en";
+  } catch {
+    return "en";
+  }
+}
 const en = {
+  off: "Off",
+  hvacHeat: "Heating",
+  cool: "Cooling",
+  heat_cool: "Heating/cooling",
+  dry: "Dry",
+  fan_only: "Fan only",
+  "24h": "24 hours",
+  "7d": "7 days",
+  "30d": "30 days",
+  invalidValue: "Invalid value",
   title: "Heat pump",
   comfort: "Comfort",
   water: "Hot water",
@@ -90,6 +114,16 @@ const en = {
   config: "Configuration",
 };
 const nb: typeof en = {
+  off: "Av",
+  hvacHeat: "Oppvarming",
+  cool: "Kjøling",
+  heat_cool: "Oppvarming/kjøling",
+  dry: "Avfukting",
+  fan_only: "Bare vifte",
+  "24h": "24 timer",
+  "7d": "7 dager",
+  "30d": "30 dager",
+  invalidValue: "Ugyldig verdi",
   title: "Varmepumpe",
   comfort: "Komfort",
   water: "Varmtvann",
@@ -184,5 +218,16 @@ const nb: typeof en = {
 };
 export type TextKey = keyof typeof en;
 export function localize(language: string | undefined, key: TextKey): string {
-  return /^(nb|nn|no)(-|$)/.test(language ?? "") ? nb[key] : en[key];
+  return /^(nb|nn|no)(-|$)/.test(
+    (language ?? "").replace(/_/g, "-").toLowerCase(),
+  )
+    ? nb[key]
+    : en[key];
+}
+
+export function modeLabel(locale: string, mode: string): string {
+  if (mode === "heat") return localize(locale, "hvacHeat");
+  return ["off", "auto", "cool", "heat_cool", "dry", "fan_only"].includes(mode)
+    ? localize(locale, mode as TextKey)
+    : mode;
 }

@@ -114,3 +114,7 @@ Commit both `dist/heatpump-card.js` and its source map. CI runs tests, lint, typ
 Bubble appearance reads `--bubble-main-background-color`, `--bubble-secondary-background-color`, `--bubble-accent-color`, `--bubble-border`, `--bubble-border-radius`, `--bubble-box-shadow`, `--bubble-icon-background-color`, `--bubble-icon-border-radius`, `--bubble-sub-button-background-color` and `--bubble-sub-button-border-radius`.
 
 Run `npm run dev` and visit `http://127.0.0.1:5173/demo/` for a simulated, interactive preview with fault, stale-data, dark-theme and language switches. It does not connect to Home Assistant or call real devices.
+
+### Language (0.1.1)
+
+The card and editor follow Home Assistant's active `hass.language`, falling back to `hass.locale.language`. Bokmål supports `nb`, `nb-NO`, and `no` (including case and underscore variants); existing `nn` support is retained. Other languages use English labels. HVAC modes, time windows, validation messages, accessible descriptions, dates and efficiency chart/table numbers follow the selected language and update when it changes. Custom names, entity IDs and service/configuration values remain unchanged.

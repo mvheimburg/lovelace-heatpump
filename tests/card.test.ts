@@ -242,3 +242,65 @@ it("warns as soon as the legionella reminder interval has elapsed", async () => 
     "Past the reminder interval",
   );
 });
+it("localizes fallback locale, HVAC labels and live language changes without translating service values", async () => {
+  const hass = {
+    ...fixture(),
+    language: undefined,
+    locale: { language: "NB_no" },
+  };
+  const { c } = await card({}, hass);
+  expect(c.shadowRoot?.textContent).toContain("Komfort");
+  expect(c.shadowRoot?.textContent).toContain("20,5");
+  const mode = c.shadowRoot!.querySelector<HTMLSelectElement>(
+    '[data-control="mode"]',
+  )!;
+  expect(Array.from(mode.options, (o) => o.textContent)).toEqual([
+    "Av",
+    "Oppvarming",
+    "Automatisk",
+  ]);
+  mode.value = "heat";
+  mode.dispatchEvent(new Event("change"));
+  await vi.waitFor(() =>
+    expect(hass.callService).toHaveBeenCalledWith("climate", "set_hvac_mode", {
+      entity_id: "climate.home",
+      hvac_mode: "heat",
+    }),
+  );
+  c.hass = { ...hass, language: "en" };
+  await c.updateComplete;
+  expect(c.shadowRoot?.textContent).toContain("Comfort");
+});
+it("localizes editor windows and validation with locale fallback", async () => {
+  const editor = new HeatpumpEditor();
+  editor.hass = {
+    ...fixture(),
+    language: undefined,
+    locale: { language: "no" },
+  } as HomeAssistant;
+  document.body.append(editor);
+  mounted.push(editor);
+  await editor.updateComplete;
+  expect(editor.shadowRoot?.textContent).toContain("7 dager");
+  const input = editor.shadowRoot!.querySelector<HTMLInputElement>(
+    '[data-config="legionella_interval_days"]',
+  )!;
+  input.value = "-1";
+  input.dispatchEvent(new Event("change"));
+  expect(input.validationMessage).toBe("Ugyldig verdi");
+});
+it("refreshes an existing validation message when editor language changes", async () => {
+  const editor = new HeatpumpEditor();
+  editor.hass = fixture();
+  document.body.append(editor);
+  mounted.push(editor);
+  await editor.updateComplete;
+  const input = editor.shadowRoot!.querySelector<HTMLInputElement>(
+    '[data-config="legionella_interval_days"]',
+  )!;
+  input.value = "-1";
+  input.dispatchEvent(new Event("change"));
+  editor.hass = { ...fixture(), language: "nb" };
+  await editor.updateComplete;
+  expect(input.validationMessage).toBe("Ugyldig verdi");
+});

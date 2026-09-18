@@ -13,7 +13,7 @@ import {
 } from "./data";
 import { Readings, available, numeric } from "./readings";
 import { actionPayload, perform, type Action } from "./actions";
-import { localize, type TextKey } from "./localize";
+import { modeLabel, language, localize, type TextKey } from "./localize";
 import { efficiencyGroup } from "./efficiency";
 import { styles } from "./styles";
 import "./editor";
@@ -177,7 +177,7 @@ export class HeatpumpCard extends LitElement {
         }
       });
   }
-  private t = (key: TextKey) => localize(this.ha?.language, key);
+  private t = (key: TextKey) => localize(language(this.ha), key);
   private reading(role: Role) {
     return this.readings.get(
       this.found.roles[role]?.entity_id,
@@ -199,7 +199,7 @@ export class HeatpumpCard extends LitElement {
     const n = numeric(value);
     return n === undefined
       ? "—"
-      : new Intl.NumberFormat(this.ha?.language ?? "en", {
+      : new Intl.NumberFormat(language(this.ha), {
           maximumFractionDigits: 1,
         }).format(n);
   }
@@ -209,7 +209,7 @@ export class HeatpumpCard extends LitElement {
     const stamp = r.entity?.last_updated ?? r.entity?.last_changed;
     return html`<span class="stale"
       >${this.t("stale")} ·
-      ${stamp ? html`${this.t("lastSeen")} <time datetime=${stamp}>${new Date(stamp).toLocaleString(this.ha?.language)}</time>` : this.t("noLastSeen")}</span
+      ${stamp ? html`${this.t("lastSeen")} <time datetime=${stamp}>${new Date(stamp).toLocaleString(language(this.ha))}</time>` : this.t("noLastSeen")}</span
     >`;
   }
   private info(role: Role): void {
@@ -335,7 +335,7 @@ export class HeatpumpCard extends LitElement {
                     .value=${live(e?.state ?? "")}
                     @change=${(event: Event) => void this.act("climate", "mode", (event.target as HTMLSelectElement).value)}
                   >
-                    ${modes.map((m) => html`<option value=${m} ?selected=${m === e?.state}>${m}</option>`)}
+                    ${modes.map((m) => html`<option value=${m} ?selected=${m === e?.state}>${modeLabel(language(this.ha), m)}</option>`)}
                   </select></label
                 >`
               : nothing
@@ -473,7 +473,7 @@ export class HeatpumpCard extends LitElement {
     return html`<section data-panel="efficiency">
       <div class="row between">
         <h3>${this.t("efficiency")}</h3>
-        <span class="chip">${this.config?.cop_window}</span>
+        <span class="chip">${this.t(this.config!.cop_window!)}</span>
       </div>
       ${this.energyLoading ? html`<p class="hint" role="status">${this.t("loading")}</p>` : nothing}
       ${
@@ -493,9 +493,9 @@ export class HeatpumpCard extends LitElement {
               ${this.energy ? html`<span class="stale">${this.t("statisticsStale")}</span>` : nothing}`
           : nothing
       }
-      ${hasHeating ? efficiencyGroup("heating", this.energy, this.t) : nothing}${hasWater ? efficiencyGroup("water", this.energy, this.t) : nothing}
+      ${hasHeating ? efficiencyGroup("heating", this.energy, this.t, language(this.ha)) : nothing}${hasWater ? efficiencyGroup("water", this.energy, this.t, language(this.ha)) : nothing}
       <p class="hint">
-        ${this.t("energyNote")}${this.energy ? html`<br />${this.t("through")} <time datetime=${new Date(this.energy.end).toISOString()}>${new Date(this.energy.end).toLocaleString(this.ha?.language)}</time>` : nothing}
+        ${this.t("energyNote")}${this.energy ? html`<br />${this.t("through")} <time datetime=${new Date(this.energy.end).toISOString()}>${new Date(this.energy.end).toLocaleString(language(this.ha))}</time>` : nothing}
       </p>
     </section>`;
   }

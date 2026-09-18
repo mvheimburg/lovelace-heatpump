@@ -638,7 +638,30 @@ async function perform(hass, payload) {
     await hass.callService(payload.domain, payload.service, payload.data);
 }
 
+function language(hass) {
+    const value = (hass?.language || hass?.locale?.language || "en")
+        .replace(/_/g, "-")
+        .toLowerCase();
+    if (/^(nb|nn|no)(-|$)/.test(value))
+        return "nb-NO";
+    try {
+        return Intl.getCanonicalLocales(value)[0] ?? "en";
+    }
+    catch {
+        return "en";
+    }
+}
 const en = {
+    off: "Off",
+    hvacHeat: "Heating",
+    cool: "Cooling",
+    heat_cool: "Heating/cooling",
+    dry: "Dry",
+    fan_only: "Fan only",
+    "24h": "24 hours",
+    "7d": "7 days",
+    "30d": "30 days",
+    invalidValue: "Invalid value",
     title: "Heat pump",
     comfort: "Comfort",
     water: "Hot water",
@@ -726,6 +749,16 @@ const en = {
     config: "Configuration",
 };
 const nb = {
+    off: "Av",
+    hvacHeat: "Oppvarming",
+    cool: "Kjøling",
+    heat_cool: "Oppvarming/kjøling",
+    dry: "Avfukting",
+    fan_only: "Bare vifte",
+    "24h": "24 timer",
+    "7d": "7 dager",
+    "30d": "30 dager",
+    invalidValue: "Ugyldig verdi",
     title: "Varmepumpe",
     comfort: "Komfort",
     water: "Varmtvann",
@@ -813,11 +846,26 @@ const nb = {
     config: "Konfigurasjon",
 };
 function localize(language, key) {
-    return /^(nb|nn|no)(-|$)/.test(language ?? "") ? nb[key] : en[key];
+    return /^(nb|nn|no)(-|$)/.test((language ?? "").replace(/_/g, "-").toLowerCase())
+        ? nb[key]
+        : en[key];
+}
+function modeLabel(locale, mode) {
+    if (mode === "heat")
+        return localize(locale, "hvacHeat");
+    return ["off", "auto", "cool", "heat_cool", "dry", "fan_only"].includes(mode)
+        ? localize(locale, mode)
+        : mode;
 }
 
-const fmt = (n, digits = 1) => n === undefined ? "—" : n.toFixed(digits);
-function plot(summary, t) {
+const formatter = (language) => (n, digits = 1) => n === undefined
+    ? "—"
+    : new Intl.NumberFormat(language, {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+    }).format(n);
+function plot(summary, t, language) {
+    const fmt = formatter(language);
     const points = summary.points;
     if (!points.length)
         return b `<p class="hint">${t("plotEmpty")}</p>`;
@@ -832,7 +880,7 @@ function plot(summary, t) {
       ${[xMin, (xMin + xMax) / 2, xMax].map((n) => w `<text x=${x(n)} y="173" text-anchor="middle">${fmt(n, 0)}°</text>`)}
       <text x="40" y="15">COP</text>
       <text x="178" y="191" text-anchor="middle">${t("outdoor")} (°C)</text>
-      ${points.map((p) => w `<circle class="point" cx=${x(p.temperature)} cy=${y(p.cop)} r="3"><title>${new Date(p.start).toLocaleString()} · ${fmt(p.temperature)} °C · COP ${fmt(p.cop, 2)}</title></circle>`)}
+      ${points.map((p) => w `<circle class="point" cx=${x(p.temperature)} cy=${y(p.cop)} r="3"><title>${new Date(p.start).toLocaleString(language)} · ${fmt(p.temperature)} °C · COP ${fmt(p.cop, 2)}</title></circle>`)}
     </svg>
     <p class="hint">${t("plotHint")}</p>
     <details>
@@ -848,7 +896,7 @@ function plot(summary, t) {
           </thead>
           <tbody>
             ${points.map((p) => b `<tr>
-                  <td>${new Date(p.start).toLocaleString()}</td>
+                  <td>${new Date(p.start).toLocaleString(language)}</td>
                   <td>${fmt(p.temperature)}</td>
                   <td>${fmt(p.cop, 2)}</td>
                 </tr>`)}
@@ -857,7 +905,8 @@ function plot(summary, t) {
       </div>
     </details>`;
 }
-function efficiencyGroup(mode, data, t) {
+function efficiencyGroup(mode, data, t, language = "en") {
+    const fmt = formatter(language);
     const s = data?.[mode];
     if (!s || s.status === "missing")
         return b `<div class="energy-group">
@@ -899,7 +948,7 @@ function efficiencyGroup(mode, data, t) {
     <p class="hint">
       ${t(data?.sources[mode] === "external" ? "externalHint" : "recorderHint")}
     </p>
-    ${plot(s, t)}
+    ${plot(s, t, language)}
   </div>`;
 }
 
@@ -1347,8 +1396,16 @@ class HeatpumpEditor extends i$1 {
         };
         this.requestUpdate();
     }
+    updated() {
+        this.renderRoot
+            .querySelectorAll("input")
+            .forEach((input) => {
+            if (input.validity.customError)
+                input.setCustomValidity(this.t("invalidValue"));
+        });
+    }
     t(key) {
-        return localize(this.hass?.language, key);
+        return localize(language(this.hass), key);
     }
     change(key, event) {
         const input = event.target;
@@ -1368,7 +1425,7 @@ class HeatpumpEditor extends i$1 {
             normalizeConfig(next);
         }
         catch {
-            input.setCustomValidity("Invalid value");
+            input.setCustomValidity(this.t("invalidValue"));
             input.reportValidity();
             return;
         }
@@ -1390,7 +1447,7 @@ class HeatpumpEditor extends i$1 {
         .value=${l(selected)}
         @change=${(e) => this.change(key, e)}
       >
-        ${values.map((v) => b `<option value=${v} ?selected=${v === selected}>${key === "cop_window" ? v : this.t(v)}</option>`)}
+        ${values.map((v) => b `<option value=${v} ?selected=${v === selected}>${this.t(v)}</option>`)}
       </select></label
     >`;
     }
@@ -1457,7 +1514,7 @@ class HeatpumpCard extends i$1 {
         this.feedback = "";
         this.failed = false;
         this.vetoHours = 2;
-        this.t = (key) => localize(this.ha?.language, key);
+        this.t = (key) => localize(language(this.ha), key);
     }
     get hass() {
         return this.ha;
@@ -1607,7 +1664,7 @@ class HeatpumpCard extends i$1 {
         const n = numeric(value);
         return n === undefined
             ? "—"
-            : new Intl.NumberFormat(this.ha?.language ?? "en", {
+            : new Intl.NumberFormat(language(this.ha), {
                 maximumFractionDigits: 1,
             }).format(n);
     }
@@ -1618,7 +1675,7 @@ class HeatpumpCard extends i$1 {
         const stamp = r.entity?.last_updated ?? r.entity?.last_changed;
         return b `<span class="stale"
       >${this.t("stale")} ·
-      ${stamp ? b `${this.t("lastSeen")} <time datetime=${stamp}>${new Date(stamp).toLocaleString(this.ha?.language)}</time>` : this.t("noLastSeen")}</span
+      ${stamp ? b `${this.t("lastSeen")} <time datetime=${stamp}>${new Date(stamp).toLocaleString(language(this.ha))}</time>` : this.t("noLastSeen")}</span
     >`;
     }
     info(role) {
@@ -1729,7 +1786,7 @@ class HeatpumpCard extends i$1 {
                     .value=${l(e?.state ?? "")}
                     @change=${(event) => void this.act("climate", "mode", event.target.value)}
                   >
-                    ${modes.map((m) => b `<option value=${m} ?selected=${m === e?.state}>${m}</option>`)}
+                    ${modes.map((m) => b `<option value=${m} ?selected=${m === e?.state}>${modeLabel(language(this.ha), m)}</option>`)}
                   </select></label
                 >`
             : A}
@@ -1846,7 +1903,7 @@ class HeatpumpCard extends i$1 {
         return b `<section data-panel="efficiency">
       <div class="row between">
         <h3>${this.t("efficiency")}</h3>
-        <span class="chip">${this.config?.cop_window}</span>
+        <span class="chip">${this.t(this.config.cop_window)}</span>
       </div>
       ${this.energyLoading ? b `<p class="hint" role="status">${this.t("loading")}</p>` : A}
       ${this.energyError
@@ -1864,9 +1921,9 @@ class HeatpumpCard extends i$1 {
               </p>
               ${this.energy ? b `<span class="stale">${this.t("statisticsStale")}</span>` : A}`
             : A}
-      ${hasHeating ? efficiencyGroup("heating", this.energy, this.t) : A}${hasWater ? efficiencyGroup("water", this.energy, this.t) : A}
+      ${hasHeating ? efficiencyGroup("heating", this.energy, this.t, language(this.ha)) : A}${hasWater ? efficiencyGroup("water", this.energy, this.t, language(this.ha)) : A}
       <p class="hint">
-        ${this.t("energyNote")}${this.energy ? b `<br />${this.t("through")} <time datetime=${new Date(this.energy.end).toISOString()}>${new Date(this.energy.end).toLocaleString(this.ha?.language)}</time>` : A}
+        ${this.t("energyNote")}${this.energy ? b `<br />${this.t("through")} <time datetime=${new Date(this.energy.end).toISOString()}>${new Date(this.energy.end).toLocaleString(language(this.ha))}</time>` : A}
       </p>
     </section>`;
     }

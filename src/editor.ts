@@ -2,7 +2,7 @@ import { LitElement, html } from "lit";
 import { live } from "lit/directives/live.js";
 import type { CardConfig, HomeAssistant } from "./types";
 import { normalizeConfig } from "./config";
-import { localize, type TextKey } from "./localize";
+import { language, localize, type TextKey } from "./localize";
 import { styles } from "./styles";
 export class HeatpumpEditor extends LitElement {
   static styles = styles;
@@ -16,8 +16,16 @@ export class HeatpumpEditor extends LitElement {
     };
     this.requestUpdate();
   }
+  protected updated(): void {
+    this.renderRoot
+      .querySelectorAll<HTMLInputElement>("input")
+      .forEach((input) => {
+        if (input.validity.customError)
+          input.setCustomValidity(this.t("invalidValue"));
+      });
+  }
   private t(key: TextKey): string {
-    return localize(this.hass?.language, key);
+    return localize(language(this.hass), key);
   }
   private change(key: keyof CardConfig, event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -34,7 +42,7 @@ export class HeatpumpEditor extends LitElement {
     try {
       normalizeConfig(next);
     } catch {
-      input.setCustomValidity("Invalid value");
+      input.setCustomValidity(this.t("invalidValue"));
       input.reportValidity();
       return;
     }
@@ -63,7 +71,7 @@ export class HeatpumpEditor extends LitElement {
         .value=${live(selected)}
         @change=${(e: Event) => this.change(key, e)}
       >
-        ${values.map((v) => html`<option value=${v} ?selected=${v === selected}>${key === "cop_window" ? v : this.t(v as TextKey)}</option>`)}
+        ${values.map((v) => html`<option value=${v} ?selected=${v === selected}>${this.t(v as TextKey)}</option>`)}
       </select></label
     >`;
   }

@@ -3,9 +3,17 @@ import type { EnergyData } from "./data";
 import type { Summary } from "./energy";
 import type { TextKey } from "./localize";
 type Translate = (key: TextKey) => string;
-const fmt = (n: number | undefined, digits = 1) =>
-  n === undefined ? "—" : n.toFixed(digits);
-function plot(summary: Summary, t: Translate) {
+const formatter =
+  (language: string) =>
+  (n: number | undefined, digits = 1) =>
+    n === undefined
+      ? "—"
+      : new Intl.NumberFormat(language, {
+          minimumFractionDigits: digits,
+          maximumFractionDigits: digits,
+        }).format(n);
+function plot(summary: Summary, t: Translate, language: string) {
+  const fmt = formatter(language);
   const points = summary.points;
   if (!points.length) return html`<p class="hint">${t("plotEmpty")}</p>`;
   const xMin = Math.floor(Math.min(...points.map((p) => p.temperature))) - 1,
@@ -21,7 +29,7 @@ function plot(summary: Summary, t: Translate) {
       ${[xMin, (xMin + xMax) / 2, xMax].map((n) => svg`<text x=${x(n)} y="173" text-anchor="middle">${fmt(n, 0)}°</text>`)}
       <text x="40" y="15">COP</text>
       <text x="178" y="191" text-anchor="middle">${t("outdoor")} (°C)</text>
-      ${points.map((p) => svg`<circle class="point" cx=${x(p.temperature)} cy=${y(p.cop)} r="3"><title>${new Date(p.start).toLocaleString()} · ${fmt(p.temperature)} °C · COP ${fmt(p.cop, 2)}</title></circle>`)}
+      ${points.map((p) => svg`<circle class="point" cx=${x(p.temperature)} cy=${y(p.cop)} r="3"><title>${new Date(p.start).toLocaleString(language)} · ${fmt(p.temperature)} °C · COP ${fmt(p.cop, 2)}</title></circle>`)}
     </svg>
     <p class="hint">${t("plotHint")}</p>
     <details>
@@ -39,7 +47,7 @@ function plot(summary: Summary, t: Translate) {
             ${points.map(
               (p) =>
                 html`<tr>
-                  <td>${new Date(p.start).toLocaleString()}</td>
+                  <td>${new Date(p.start).toLocaleString(language)}</td>
                   <td>${fmt(p.temperature)}</td>
                   <td>${fmt(p.cop, 2)}</td>
                 </tr>`,
@@ -53,7 +61,9 @@ export function efficiencyGroup(
   mode: "heating" | "water",
   data: EnergyData | undefined,
   t: Translate,
+  language = "en",
 ) {
+  const fmt = formatter(language);
   const s = data?.[mode];
   if (!s || s.status === "missing")
     return html`<div class="energy-group">
@@ -95,6 +105,6 @@ export function efficiencyGroup(
     <p class="hint">
       ${t(data?.sources[mode] === "external" ? "externalHint" : "recorderHint")}
     </p>
-    ${plot(s, t)}
+    ${plot(s, t, language)}
   </div>`;
 }
