@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>Heat Pump Card · simulated preview</title>
+  <style>
+    body {
+      margin: 0;
+      background: #edf1ec;
+      color: #263b36;
+      font-family: system-ui, sans-serif;
+      padding: 32px;
+    }
+    main {
+      max-width: 940px;
+      margin: auto;
+    }
+    h1 {
+      font-size: 26px;
+      letter-spacing: -0.04em;
+      margin: 0;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    header p {
+      font-size: 13px;
+      color: #64716b;
+    }
+    button {
+      border: 1px solid #c3cec5;
+      border-radius: 10px;
+      background: white;
+      padding: 10px;
+      cursor: pointer;
+    }
+    nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    .stack {
+      display: grid;
+      gap: 20px;
+    }
+    body.dark {
+      background: #18221f;
+      --primary-text-color: #e3ece8;
+      --secondary-text-color: #b5c4bd;
+      --ha-card-background: #26332d;
+      --card-background-color: #26332d;
+      --secondary-background-color: #303e37;
+      --divider-color: #46574c;
+      --ha-card-border-color: #46574c;
+      color: #e3ece8;
+    }
+    body.dark header p {
+      color: #b5c4bd;
+    }
+    @media (max-width: 700px) {
+      body {
+        padding: 16px;
+      }
+      .cards {
+        grid-template-columns: 1fr;
+      }
+      header {
+        display: block;
+      }
+    }
+  </style>
+  <main>
+    <header>
+      <div>
+        <h1>A little warmth. A clearer picture.</h1>
+        <p>Heat Pump Card · simulated myVAILLANT data</p>
+      </div>
+      <nav>
+        <button id="fault">Toggle fault</button
+        ><button id="offline">Toggle stale</button
+        ><button id="theme">Light / dark</button
+        ><button id="language">EN / NB</button>
+      </nav>
+    </header>
+    <div class="cards">
+      <div class="stack" id="daily"></div>
+      <div id="energy"></div>
+    </div>
+  </main>
+  <script type="module" src="./preview.ts"></script>
+</html>
