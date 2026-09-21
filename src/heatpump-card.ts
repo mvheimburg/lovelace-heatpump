@@ -1,3 +1,4 @@
+import { applyColorScheme } from "./color-schemes";
 import { LitElement, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { ifDefined } from "lit/directives/if-defined.js";
@@ -57,7 +58,9 @@ export class HeatpumpCard extends LitElement {
     this.requestUpdate();
   }
   setConfig(value: CardConfig): void {
-    this.config = normalizeConfig(value);
+    const next = normalizeConfig(value);
+    applyColorScheme(this, value.color_scheme, this.ha);
+    this.config = next;
     this.readings = new Readings();
     this.energy = undefined;
     this.energyKey = "";

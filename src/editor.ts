@@ -1,3 +1,4 @@
+import { colorSchemeSelector } from "./color-schemes";
 import { LitElement, html } from "lit";
 import { live } from "lit/directives/live.js";
 import type { CardConfig, HomeAssistant } from "./types";
@@ -77,6 +78,11 @@ export class HeatpumpEditor extends LitElement {
   }
   protected render() {
     return html`<div class="editor">
+      ${colorSchemeSelector(this.hass, this.config.color_scheme, (scheme) => {
+        this.config = { ...this.config, color_scheme: scheme };
+        this.requestUpdate();
+        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: { ...this.config } }, bubbles: true, composed: true }));
+      })}
       <p class="hint">${this.t("editorHint")}</p>
       <label
         >${this.t("entity")}<input

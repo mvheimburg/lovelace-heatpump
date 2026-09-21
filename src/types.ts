@@ -1,3 +1,4 @@
+import type { ColorScheme } from "./color-schemes";
 export interface HassEntity {
   entity_id: string;
   state: string;
@@ -79,6 +80,7 @@ export interface CardConfig {
   name?: string;
   mode?: "all" | "comfort" | "water" | "efficiency";
   appearance?: "default" | "bubble";
+  color_scheme?: ColorScheme;
   cop_window?: Window;
   show_efficiency?: boolean;
   show_hot_water?: boolean;
