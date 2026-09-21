@@ -113,6 +113,24 @@ export const styles = css`
     border-radius: 12px;
     font-size: 0.8rem;
   }
+  /* Readings that open their history: text that is also a button. */
+  button.big,
+  button.hint.link {
+    display: block;
+    font-family: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    text-align: start;
+    cursor: pointer;
+    min-height: 32px;
+  }
+  button.big:hover,
+  button.hint.link:hover {
+    text-decoration: underline dotted;
+    text-underline-offset: 4px;
+  }
   button.chip {
     font: inherit;
     font-size: 0.8rem;
@@ -140,6 +158,19 @@ export const styles = css`
   }
   .s-pressure {
     --series: var(--hp-green);
+  }
+  .s-tank,
+  .s-heatingCop {
+    --series: var(--hp-warm);
+  }
+  .s-waterTarget {
+    --series: var(--secondary-text-color, #627370);
+  }
+  .s-waterCop {
+    --series: var(--hp-green);
+  }
+  .chart .s-waterTarget {
+    stroke-dasharray: 5 4;
   }
   dialog#history {
     color: var(--primary-text-color, #243a39);
@@ -231,6 +262,7 @@ export const styles = css`
     stroke: var(--series);
     stroke-width: 2;
     stroke-linejoin: round;
+    stroke-linecap: round;
   }
   .chart .s-flowTarget {
     stroke-dasharray: 5 4;

@@ -62,6 +62,8 @@ export function efficiencyGroup(
   data: EnergyData | undefined,
   t: Translate,
   language = "en",
+  /** Opens the COP-per-day history. */
+  onHistory?: () => void,
 ) {
   const fmt = formatter(language);
   const s = data?.[mode];
@@ -77,7 +79,18 @@ export function efficiencyGroup(
       <h4>${t(mode)}</h4>
       <div>
         <div class="eyebrow muted">${t("cop")}</div>
-        <div class="big cop">${fmt(s.cop, 2)}</div>
+        ${
+          onHistory
+            ? html`<button
+                class="big cop"
+                data-cop=${mode}
+                aria-label=${`${t("cop")} ${fmt(s.cop, 2)}: ${t("copHistory")}`}
+                @click=${onHistory}
+              >
+                ${fmt(s.cop, 2)}
+              </button>`
+            : html`<div class="big cop">${fmt(s.cop, 2)}</div>`
+        }
       </div>
     </div>
     ${s.status === "noInput" ? html`<p class="hint warning">${t("noInput")}</p>` : nothing}

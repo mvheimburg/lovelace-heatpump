@@ -54,6 +54,12 @@ Tap any of the readings (flow, flow target, outdoor, pressure) to open their **h
 
 ![Flow, flow target, outdoor temperature and water pressure in one history chart](docs/heatpump-history.png)
 
+Tap the **tank temperature** or its target to see the hot water history: the tank temperature with the target as a dashed step. When the integration has no separate tank or target sensor, both come from the water heater's own `current_temperature` and `temperature`.
+
+Tap a **measured COP** to see the COP per day for heating and hot water over 7, 30 (the default) or 90 days, with the day's mean outdoor temperature. Each day is heat out ÷ electricity in, from the same statistics as the efficiency summary; a day with under 0.1 kWh of electricity is left as a gap rather than an extreme ratio (0.5.0).
+
+![COP per day for heating and hot water with the daily outdoor temperature](docs/heatpump-cop-history.png)
+
 To switch between heating and cooling with your own control, set `cooling_entity` to a `switch` or `input_boolean` (for example one that changes over your heat pump or its circuits). Comfort then shows a **Heating | Cooling** switch: **Cooling** turns the entity on, **Heating** turns it off. The card sends only that call; it does not change myVAILLANT's operating mode. If the entity is unavailable or missing, the switch is disabled and says so. The visual editor lists your switches and input booleans.
 
 Hot water shows tank temperature relative to its target and a boost button with explicit active/stop state. **The filled column is temperature relative to target, not a percentage of remaining hot water or a shower count.** The legionella reminder displays the integration's last reported temperature-reached date, including unknown or future dates.

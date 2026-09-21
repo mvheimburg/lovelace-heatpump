@@ -532,7 +532,7 @@ const energyRoles = [
 const energyUnit = (m) => m.has_sum &&
     ["Wh", "kWh", "MWh", "GJ", "MJ", "J"].includes(m.statistics_unit_of_measurement ?? m.unit_of_measurement ?? "");
 async function fetchEnergy(c, roles, window, now) {
-    const range = windowRange(window, now), result = { ...range, sources: {} };
+    const range = windowRange(window, now), result = { ...range, sources: {}, ids: {} };
     const requested = energyRoles.flatMap((r) => roles[r] ? [external(roles[r]), roles[r].entity_id] : []);
     if (roles.outdoor)
         requested.push(roles.outdoor.entity_id);
@@ -570,6 +570,7 @@ async function fetchEnergy(c, roles, window, now) {
         if (![electric, heat].every((e) => supports(idFor(e))))
             continue;
         result.sources[mode] = useExternal ? "external" : "recorder";
+        result.ids[mode] = { electric: idFor(electric), heat: idFor(heat) };
         result[mode] = summarize({
             electric: stats[idFor(electric)] ?? [],
             heat: stats[idFor(heat)] ?? [],
@@ -852,6 +853,12 @@ const en = {
     loading: "Loading…",
     history: "History",
     historyTitle: "Heat pump history",
+    waterHistory: "Hot water history",
+    copHistory: "COP per day",
+    waterTargetLine: "Hot water target",
+    heatingCop: "Heating COP",
+    waterCop: "Hot water COP",
+    copHint: "Heat out ÷ electricity in, per day. Days with under 0.1 kWh of electricity are left out.",
     historyFailed: "Could not load history",
     noHistory: "No history for this period",
     close: "Close",
@@ -958,6 +965,12 @@ const nb = {
     loading: "Laster…",
     history: "Historikk",
     historyTitle: "Varmepumpehistorikk",
+    waterHistory: "Varmtvannshistorikk",
+    copHistory: "COP per døgn",
+    waterTargetLine: "Ønsket varmtvann",
+    heatingCop: "COP oppvarming",
+    waterCop: "COP varmtvann",
+    copHint: "Varme ut ÷ strøm inn, per døgn. Døgn med under 0,1 kWh strøm er utelatt.",
     historyFailed: "Kunne ikke hente historikk",
     noHistory: "Ingen historikk for denne perioden",
     close: "Lukk",
@@ -1075,7 +1088,9 @@ function plot(summary, t, language) {
       </div>
     </details>`;
 }
-function efficiencyGroup(mode, data, t, language = "en") {
+function efficiencyGroup(mode, data, t, language = "en", 
+/** Opens the COP-per-day history. */
+onHistory) {
     const fmt = formatter(language);
     const s = data?.[mode];
     if (!s || s.status === "missing")
@@ -1090,7 +1105,16 @@ function efficiencyGroup(mode, data, t, language = "en") {
       <h4>${t(mode)}</h4>
       <div>
         <div class="eyebrow muted">${t("cop")}</div>
-        <div class="big cop">${fmt(s.cop, 2)}</div>
+        ${onHistory
+        ? b `<button
+                class="big cop"
+                data-cop=${mode}
+                aria-label=${`${t("cop")} ${fmt(s.cop, 2)}: ${t("copHistory")}`}
+                @click=${onHistory}
+              >
+                ${fmt(s.cop, 2)}
+              </button>`
+        : b `<div class="big cop">${fmt(s.cop, 2)}</div>`}
       </div>
     </div>
     ${s.status === "noInput" ? b `<p class="hint warning">${t("noInput")}</p>` : A}
@@ -1235,6 +1259,24 @@ const styles = i$4 `
     border-radius: 12px;
     font-size: 0.8rem;
   }
+  /* Readings that open their history: text that is also a button. */
+  button.big,
+  button.hint.link {
+    display: block;
+    font-family: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    text-align: start;
+    cursor: pointer;
+    min-height: 32px;
+  }
+  button.big:hover,
+  button.hint.link:hover {
+    text-decoration: underline dotted;
+    text-underline-offset: 4px;
+  }
   button.chip {
     font: inherit;
     font-size: 0.8rem;
@@ -1262,6 +1304,19 @@ const styles = i$4 `
   }
   .s-pressure {
     --series: var(--hp-green);
+  }
+  .s-tank,
+  .s-heatingCop {
+    --series: var(--hp-warm);
+  }
+  .s-waterTarget {
+    --series: var(--secondary-text-color, #627370);
+  }
+  .s-waterCop {
+    --series: var(--hp-green);
+  }
+  .chart .s-waterTarget {
+    stroke-dasharray: 5 4;
   }
   dialog#history {
     color: var(--primary-text-color, #243a39);
@@ -1353,6 +1408,7 @@ const styles = i$4 `
     stroke: var(--series);
     stroke-width: 2;
     stroke-linejoin: round;
+    stroke-linecap: round;
   }
   .chart .s-flowTarget {
     stroke-dasharray: 5 4;
@@ -1761,36 +1817,58 @@ const styles = i$4 `
   ${colorSchemeStyles}
 `;
 
-const RANGES = [6, 24, 168];
+const RANGES = {
+    readings: [6, 24, 168],
+    water: [6, 24, 168],
+    cop: [168, 720, 2160],
+};
+const DEFAULT_RANGE = {
+    readings: 24,
+    water: 24,
+    cop: 720,
+};
 /**
  * The history of each role's entity over the last `hours`, from Home
  * Assistant's recorder, ending with the current state.
  */
 async function loadHistory(connection, sources, states, hours, now = Date.now()) {
     const start = now - hours * 3600000;
-    const reply = sources.length
-        ? await connection.sendMessagePromise({
+    // Attribute sources need attributes on every row; the others do not.
+    const ask = (list, attributes) => list.length
+        ? connection.sendMessagePromise({
             type: "history/history_during_period",
             start_time: new Date(start).toISOString(),
-            entity_ids: [...new Set(sources.map((s) => s.entityId))],
-            minimal_response: true,
-            no_attributes: true,
+            entity_ids: [...new Set(list.map((s) => s.entityId))],
+            minimal_response: !attributes,
+            no_attributes: !attributes,
             significant_changes_only: false,
         })
-        : {};
-    const value = (state) => ["unavailable", "unknown", ""].includes(state) ? undefined : numeric(state);
-    return sources.map(({ role, entityId }) => {
-        const current = states[entityId];
-        const points = (reply[entityId] ?? []).map((row) => [
+        : Promise.resolve({});
+    const [withAttributes, plain] = await Promise.all([
+        ask(sources.filter((s) => s.attribute), true),
+        ask(sources.filter((s) => !s.attribute), false),
+    ]);
+    const read = (source, state, attributes) => ["unavailable", "unknown", ""].includes(state)
+        ? undefined
+        : numeric(source.attribute ? attributes?.[source.attribute] : state);
+    return sources.map((source) => {
+        const current = states[source.entityId];
+        const rows = (source.attribute ? withAttributes : plain)[source.entityId];
+        const points = (rows ?? []).map((row) => [
             Math.max(start, (row.lu ?? row.lc ?? 0) * 1000),
-            value(row.s),
+            read(source, row.s, row.a),
         ]);
         if (current)
-            points.push([now, available(current) ? value(current.state) : undefined]);
+            points.push([
+                now,
+                available(current)
+                    ? read(source, current.state, current.attributes)
+                    : undefined,
+            ]);
         return {
-            role,
-            entityId,
-            unit: String(current?.attributes.unit_of_measurement ?? ""),
+            role: source.role,
+            entityId: source.entityId,
+            unit: source.unit ?? String(current?.attributes.unit_of_measurement ?? ""),
             points,
         };
     });
@@ -1865,17 +1943,21 @@ function chart(series, start, end, hover, text, W = 600) {
     const y = (v, s) => BOTTOM - ((v - s.min) / (s.max - s.min || 1)) * (BOTTOM - TOP);
     const hours = (end - start) / 3600000;
     const narrow = W < 480;
-    const every = hours <= 6
+    const every = hours > 168
         ? narrow
-            ? 2
-            : 1
-        : hours <= 24
+            ? 336
+            : 168
+        : hours <= 6
             ? narrow
-                ? 6
-                : 4
-            : narrow
-                ? 48
-                : 24;
+                ? 2
+                : 1
+            : hours <= 24
+                ? narrow
+                    ? 6
+                    : 4
+                : narrow
+                    ? 48
+                    : 24;
     const xTicks = [];
     const hour = new Date(start);
     hour.setMinutes(0, 0, 0);
@@ -1890,13 +1972,14 @@ function chart(series, start, end, hover, text, W = 600) {
             xTicks.push(t);
     }
     // A setpoint holds until it is changed, so it steps; measurements are lines.
-    const STEPPED = new Set(["flowTarget"]);
+    const STEPPED = new Set(["flowTarget", "waterTarget"]);
     const path = (s, sc) => runs(s.points)
         .map((run) => run
         .map(([t, v], i) => {
         const at = `${x(t).toFixed(1)},${y(v, sc).toFixed(1)}`;
+        // A lone reading between gaps is drawn as a dot.
         if (!i)
-            return `M${at}`;
+            return run.length === 1 ? `M${at} h0.01` : `M${at}`;
         return STEPPED.has(s.role)
             ? `L${x(t).toFixed(1)},${y(run[i - 1][1], sc).toFixed(1)} L${at}`
             : `L${at}`;
@@ -1940,6 +2023,83 @@ function timeAt(event, element, start, end) {
     const px = ((event.clientX - box.left) / box.width) * W;
     const ratio = (px - LEFT) / (W - GUTTER - LEFT);
     return start + Math.min(1, Math.max(0, ratio)) * (end - start);
+}
+
+/** Below this much electricity a day's COP is noise, not efficiency. */
+const MIN_KWH = 0.1;
+const DAY = 86400000;
+/**
+ * Daily COP (heat out ÷ electricity in) for heating and hot water, from the
+ * same statistics as the card's efficiency summary, with the day's mean
+ * outdoor temperature. A day without enough electricity is a gap.
+ */
+async function loadCop(connection, energy, outdoor, days, 
+/** The heat entities, so the legend can open their more-info. */
+entities = {}, now = Date.now()) {
+    const modes = ["heating", "water"].filter((m) => energy.ids[m]);
+    const ids = [
+        ...modes.flatMap((m) => [energy.ids[m].electric, energy.ids[m].heat]),
+        ...(outdoor ? [outdoor] : []),
+    ];
+    if (!ids.length)
+        return [];
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    const start = today.getTime() - (days - 1) * DAY;
+    const stats = await connection.sendMessagePromise({
+        type: "recorder/statistics_during_period",
+        start_time: new Date(start).toISOString(),
+        end_time: new Date(now).toISOString(),
+        statistic_ids: [...new Set(ids)],
+        period: "day",
+        types: ["change", "mean"],
+        units: { energy: "kWh", temperature: "°C" },
+    });
+    const byDay = (id, key) => new Map((stats[id] ?? []).flatMap((row) => typeof row[key] === "number" && Number.isFinite(row[key])
+        ? [[row.start, row[key]]]
+        : []));
+    const dayStarts = [];
+    for (let t = start; t <= now; t += DAY) {
+        // Local midnights, robust to daylight-saving days of 23 or 25 hours.
+        const d = new Date(t);
+        d.setHours(0, 0, 0, 0);
+        if (dayStarts[dayStarts.length - 1] !== d.getTime())
+            dayStarts.push(d.getTime());
+    }
+    // Statistics may be stamped at UTC or local midnight; match to the day.
+    const lookup = (values, day) => {
+        for (const [time, value] of values)
+            if (time >= day - 12 * 3600000 && time < day + 12 * 3600000)
+                return value;
+        return undefined;
+    };
+    const series = modes.map((mode) => {
+        const electric = byDay(energy.ids[mode].electric, "change");
+        const heat = byDay(energy.ids[mode].heat, "change");
+        const points = dayStarts.map((day) => {
+            const e = lookup(electric, day), h = lookup(heat, day);
+            return [
+                day,
+                e !== undefined && h !== undefined && e >= MIN_KWH ? h / e : undefined,
+            ];
+        });
+        return {
+            role: mode === "heating" ? "heatingCop" : "waterCop",
+            entityId: entities[mode] ?? energy.ids[mode].heat,
+            unit: "COP",
+            points,
+        };
+    });
+    if (outdoor) {
+        const mean = byDay(outdoor, "mean");
+        series.push({
+            role: "outdoor",
+            entityId: outdoor,
+            unit: "°C",
+            points: dayStarts.map((day) => [day, lookup(mean, day)]),
+        });
+    }
+    return series;
 }
 
 class HeatpumpEditor extends i$1 {
@@ -2095,7 +2255,8 @@ class HeatpumpCard extends i$1 {
         this.failed = false;
         this.vetoHours = 2;
         /** History dialog: chosen range, loaded series and the hovered time. */
-        this.range = 24;
+        this.group = "readings";
+        this.range = DEFAULT_RANGE.readings;
         this.historyLoading = false;
         this.historyError = "";
         this.historyTicket = 0;
@@ -2289,7 +2450,9 @@ class HeatpumpCard extends i$1 {
     >`;
     }
     info(role) {
-        const id = this.found.roles[role]?.entity_id;
+        this.moreInfo(this.found.roles[role]?.entity_id);
+    }
+    moreInfo(id) {
         if (id)
             this.dispatchEvent(new CustomEvent("hass-more-info", {
                 detail: { entityId: id },
@@ -2402,7 +2565,7 @@ class HeatpumpCard extends i$1 {
       class="chip"
       data-chip=${role}
       aria-label=${`${this.t(label)}: ${this.t("history")}`}
-      @click=${() => void this.openHistory()}
+      @click=${() => void this.openHistory("readings")}
     >
       ${this.t(label)}
       <strong
@@ -2411,29 +2574,78 @@ class HeatpumpCard extends i$1 {
       >${this.stamp(role)}
     </button>`;
     }
-    async openHistory() {
+    async openHistory(group) {
+        if (group !== this.group) {
+            this.historyTicket++;
+            this.series = this.window = undefined;
+            this.group = group;
+            this.range = DEFAULT_RANGE[group];
+        }
+        this.requestUpdate();
         await this.updateComplete;
         const dialog = this.shadowRoot?.querySelector("#history");
         if (dialog && !dialog.open)
             dialog.showModal();
         void this.loadHistory();
     }
+    /** The tank and its target: separate sensors, else the water heater's own. */
+    waterSources() {
+        const roles = this.found.roles;
+        const water = roles.water?.entity_id;
+        const unit = this.temperatureUnit();
+        const tank = roles.tank
+            ? { role: "tank", entityId: roles.tank.entity_id }
+            : water
+                ? {
+                    role: "tank",
+                    entityId: water,
+                    attribute: "current_temperature",
+                    unit,
+                }
+                : undefined;
+        const target = roles.waterTarget
+            ? { role: "waterTarget", entityId: roles.waterTarget.entity_id }
+            : water
+                ? {
+                    role: "waterTarget",
+                    entityId: water,
+                    attribute: "temperature",
+                    unit,
+                }
+                : undefined;
+        return [tank, target].filter((s) => !!s);
+    }
     async loadHistory(range = this.range) {
         if (!this.ha)
             return;
         const ticket = ++this.historyTicket;
+        const group = this.group;
         this.range = range;
         this.historyLoading = true;
         this.historyError = "";
         this.hover = undefined;
         this.requestUpdate();
         const end = Date.now();
-        const sources = HeatpumpCard.HISTORY.flatMap((role) => {
-            const id = this.found.roles[role]?.entity_id;
-            return id ? [{ role, entityId: id }] : [];
-        });
+        const roles = this.found.roles;
         try {
-            const series = await loadHistory(this.ha.connection, sources, this.ha.states, range, end);
+            let series;
+            if (group === "cop") {
+                const energy = this.energy ??
+                    (await loadEnergy(this.ha.connection, roles, this.config?.cop_window ?? "7d"));
+                series = await loadCop(this.ha.connection, energy, roles.outdoor?.entity_id, range / 24, {
+                    heating: roles.heatingHeat?.entity_id,
+                    water: roles.waterHeat?.entity_id,
+                }, end);
+            }
+            else {
+                const sources = group === "water"
+                    ? this.waterSources()
+                    : HeatpumpCard.HISTORY.flatMap((role) => {
+                        const id = roles[role]?.entity_id;
+                        return id ? [{ role, entityId: id }] : [];
+                    });
+                series = await loadHistory(this.ha.connection, sources, this.ha.states, range, end);
+            }
             if (ticket !== this.historyTicket)
                 return;
             this.series = series;
@@ -2485,7 +2697,7 @@ class HeatpumpCard extends i$1 {
         }}
     >
       <div class="history-head">
-        <h3 id="history-title">${this.t("historyTitle")}</h3>
+        <h3 id="history-title">${this.t(HeatpumpCard.TITLES[this.group])}</h3>
         <button
           class="close"
           data-close
@@ -2497,7 +2709,7 @@ class HeatpumpCard extends i$1 {
         </button>
       </div>
       <div class="ranges" role="group" aria-label=${this.t("history")}>
-        ${RANGES.map((hours) => b `<button
+        ${RANGES[this.group].map((hours) => b `<button
               data-range=${hours}
               aria-pressed=${String(this.range === hours)}
               @click=${() => void this.loadHistory(hours)}
@@ -2531,11 +2743,12 @@ class HeatpumpCard extends i$1 {
                     : chart(series, window[0], window[1], at, {
                         number: format,
                         time,
-                        label: this.t("historyTitle"),
+                        label: this.t(HeatpumpCard.TITLES[this.group]),
                     }, Math.max(280, this.plotWidth))}
       </div>
+      ${this.group === "cop" ? b `<p class="hint">${this.t("copHint")}</p>` : A}
       <p class="when" aria-live="polite">
-        ${at === undefined ? this.t("now") : time(at, false)}
+        ${at === undefined ? this.t("now") : time(at, this.group === "cop")}
       </p>
       <div class="legend">
         ${(series ?? []).map((s) => {
@@ -2547,13 +2760,17 @@ class HeatpumpCard extends i$1 {
             data-series=${s.role}
             @click=${() => {
                 close();
-                this.info(s.role);
+                this.moreInfo(s.entityId);
             }}
           >
             <span class="swatch"></span>
             <span class="label">${this.t(HeatpumpCard.LABELS[s.role])}</span>
             <strong
-              >${value === undefined ? "—" : `${this.number(value)} ${s.unit}`}</strong
+              >${value === undefined
+                ? "—"
+                : s.unit === "COP"
+                    ? format(value, 2)
+                    : `${this.number(value)} ${s.unit}`}</strong
             >
           </button>`;
         })}
@@ -2683,14 +2900,23 @@ class HeatpumpCard extends i$1 {
         </div>
         <div class="water-info">
           <div class="eyebrow muted">${this.t("tank")}</div>
-          <div class="big">
+          <button
+            class="big"
+            data-history="water"
+            aria-label=${`${this.t("tank")} ${this.number(tank)} ${tankUnit}: ${this.t("history")}`}
+            @click=${() => void this.openHistory("water")}
+          >
             ${this.number(tank)}<span class="unit">${tankUnit}</span>
-          </div>
+          </button>
           ${this.stamp(tankRole)}
-          <div class="hint">
-            ${this.t("target")} ${this.number(target)}
-            ${targetUnit}${targetRole !== tankRole ? this.stamp(targetRole) : A}
-          </div>
+          <button
+            class="hint link"
+            data-history="waterTarget"
+            @click=${() => void this.openHistory("water")}
+          >
+            ${this.t("target")} ${this.number(target)} ${targetUnit}
+          </button>
+          ${targetRole !== tankRole ? this.stamp(targetRole) : A}
           ${roles.boost ? b `<button class=${`primary ${boosting ? "active" : ""}`} data-action="boost" ?disabled=${!this.enabled("boost")} @click=${() => void this.act("boost", "boost")}>${this.t(boosting ? "boosting" : "boost")}</button>${this.stamp("boost")}` : A}
         </div>
       </div>
@@ -2724,7 +2950,7 @@ class HeatpumpCard extends i$1 {
               </p>
               ${this.energy ? b `<span class="stale">${this.t("statisticsStale")}</span>` : A}`
             : A}
-      ${hasHeating ? efficiencyGroup("heating", this.energy, this.t, language(this.ha)) : A}${hasWater ? efficiencyGroup("water", this.energy, this.t, language(this.ha)) : A}
+      ${hasHeating ? efficiencyGroup("heating", this.energy, this.t, language(this.ha), () => void this.openHistory("cop")) : A}${hasWater ? efficiencyGroup("water", this.energy, this.t, language(this.ha), () => void this.openHistory("cop")) : A}
       <p class="hint">
         ${this.t("energyNote")}${this.energy ? b `<br />${this.t("through")} <time datetime=${new Date(this.energy.end).toISOString()}>${new Date(this.energy.end).toLocaleString(language(this.ha))}</time>` : A}
       </p>
@@ -2805,6 +3031,15 @@ HeatpumpCard.LABELS = {
     flowTarget: "flowTarget",
     outdoor: "outdoor",
     pressure: "pressure",
+    tank: "tank",
+    waterTarget: "waterTargetLine",
+    heatingCop: "heatingCop",
+    waterCop: "waterCop",
+};
+HeatpumpCard.TITLES = {
+    readings: "historyTitle",
+    water: "waterHistory",
+    cop: "copHistory",
 };
 if (!customElements.get("heatpump-card"))
     customElements.define("heatpump-card", HeatpumpCard);

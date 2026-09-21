@@ -19,12 +19,15 @@ import { efficiencyGroup } from "./efficiency";
 import { styles } from "./styles";
 import { chart, timeAt } from "./chart";
 import {
+  DEFAULT_RANGE,
   RANGES,
   loadHistory,
   valueAt,
-  type Range,
+  type HistoryGroup,
   type Series,
+  type Source,
 } from "./history";
+import { loadCop } from "./cop";
 import "./editor";
 export class HeatpumpCard extends LitElement {
   static styles = styles;
@@ -48,7 +51,8 @@ export class HeatpumpCard extends LitElement {
   private failed = false;
   private vetoHours = 2;
   /** History dialog: chosen range, loaded series and the hovered time. */
-  private range: Range = 24;
+  private group: HistoryGroup = "readings";
+  private range = DEFAULT_RANGE.readings;
   private series?: Series[];
   private window?: [number, number];
   private historyLoading = false;
@@ -255,7 +259,9 @@ export class HeatpumpCard extends LitElement {
     >`;
   }
   private info(role: Role): void {
-    const id = this.found.roles[role]?.entity_id;
+    this.moreInfo(this.found.roles[role]?.entity_id);
+  }
+  private moreInfo(id?: string): void {
     if (id)
       this.dispatchEvent(
         new CustomEvent("hass-more-info", {
@@ -381,11 +387,20 @@ export class HeatpumpCard extends LitElement {
     "outdoor",
     "pressure",
   ];
-  private static readonly LABELS: Partial<Record<Role, TextKey>> = {
+  private static readonly LABELS: Record<string, TextKey> = {
     flow: "flow",
     flowTarget: "flowTarget",
     outdoor: "outdoor",
     pressure: "pressure",
+    tank: "tank",
+    waterTarget: "waterTargetLine",
+    heatingCop: "heatingCop",
+    waterCop: "waterCop",
+  };
+  private static readonly TITLES: Record<HistoryGroup, TextKey> = {
+    readings: "historyTitle",
+    water: "waterHistory",
+    cop: "copHistory",
   };
   private chip(role: Role, label: TextKey) {
     if (!this.found.roles[role]) return nothing;
@@ -394,7 +409,7 @@ export class HeatpumpCard extends LitElement {
       class="chip"
       data-chip=${role}
       aria-label=${`${this.t(label)}: ${this.t("history")}`}
-      @click=${() => void this.openHistory()}
+      @click=${() => void this.openHistory("readings")}
     >
       ${this.t(label)}
       <strong
@@ -403,34 +418,95 @@ export class HeatpumpCard extends LitElement {
       >${this.stamp(role)}
     </button>`;
   }
-  private async openHistory(): Promise<void> {
+  private async openHistory(group: HistoryGroup): Promise<void> {
+    if (group !== this.group) {
+      this.historyTicket++;
+      this.series = this.window = undefined;
+      this.group = group;
+      this.range = DEFAULT_RANGE[group];
+    }
+    this.requestUpdate();
     await this.updateComplete;
     const dialog =
       this.shadowRoot?.querySelector<HTMLDialogElement>("#history");
     if (dialog && !dialog.open) dialog.showModal();
     void this.loadHistory();
   }
-  private async loadHistory(range: Range = this.range): Promise<void> {
+  /** The tank and its target: separate sensors, else the water heater's own. */
+  private waterSources(): Source[] {
+    const roles = this.found.roles;
+    const water = roles.water?.entity_id;
+    const unit = this.temperatureUnit();
+    const tank: Source | undefined = roles.tank
+      ? { role: "tank", entityId: roles.tank.entity_id }
+      : water
+        ? {
+            role: "tank",
+            entityId: water,
+            attribute: "current_temperature",
+            unit,
+          }
+        : undefined;
+    const target: Source | undefined = roles.waterTarget
+      ? { role: "waterTarget", entityId: roles.waterTarget.entity_id }
+      : water
+        ? {
+            role: "waterTarget",
+            entityId: water,
+            attribute: "temperature",
+            unit,
+          }
+        : undefined;
+    return [tank, target].filter((s): s is Source => !!s);
+  }
+  private async loadHistory(range = this.range): Promise<void> {
     if (!this.ha) return;
     const ticket = ++this.historyTicket;
+    const group = this.group;
     this.range = range;
     this.historyLoading = true;
     this.historyError = "";
     this.hover = undefined;
     this.requestUpdate();
     const end = Date.now();
-    const sources = HeatpumpCard.HISTORY.flatMap((role) => {
-      const id = this.found.roles[role]?.entity_id;
-      return id ? [{ role, entityId: id }] : [];
-    });
+    const roles = this.found.roles;
     try {
-      const series = await loadHistory(
-        this.ha.connection,
-        sources,
-        this.ha.states,
-        range,
-        end,
-      );
+      let series: Series[];
+      if (group === "cop") {
+        const energy =
+          this.energy ??
+          (await loadEnergy(
+            this.ha.connection,
+            roles,
+            this.config?.cop_window ?? "7d",
+          ));
+        series = await loadCop(
+          this.ha.connection,
+          energy,
+          roles.outdoor?.entity_id,
+          range / 24,
+          {
+            heating: roles.heatingHeat?.entity_id,
+            water: roles.waterHeat?.entity_id,
+          },
+          end,
+        );
+      } else {
+        const sources: Source[] =
+          group === "water"
+            ? this.waterSources()
+            : HeatpumpCard.HISTORY.flatMap((role) => {
+                const id = roles[role]?.entity_id;
+                return id ? [{ role, entityId: id }] : [];
+              });
+        series = await loadHistory(
+          this.ha.connection,
+          sources,
+          this.ha.states,
+          range,
+          end,
+        );
+      }
       if (ticket !== this.historyTicket) return;
       this.series = series;
       this.window = [end - range * 3_600_000, end];
@@ -489,7 +565,7 @@ export class HeatpumpCard extends LitElement {
       }}
     >
       <div class="history-head">
-        <h3 id="history-title">${this.t("historyTitle")}</h3>
+        <h3 id="history-title">${this.t(HeatpumpCard.TITLES[this.group])}</h3>
         <button
           class="close"
           data-close
@@ -501,7 +577,7 @@ export class HeatpumpCard extends LitElement {
         </button>
       </div>
       <div class="ranges" role="group" aria-label=${this.t("history")}>
-        ${RANGES.map(
+        ${RANGES[this.group].map(
           (hours) =>
             html`<button
               data-range=${hours}
@@ -543,14 +619,15 @@ export class HeatpumpCard extends LitElement {
                     {
                       number: format,
                       time,
-                      label: this.t("historyTitle"),
+                      label: this.t(HeatpumpCard.TITLES[this.group]),
                     },
                     Math.max(280, this.plotWidth),
                   )
         }
       </div>
+      ${this.group === "cop" ? html`<p class="hint">${this.t("copHint")}</p>` : nothing}
       <p class="when" aria-live="polite">
-        ${at === undefined ? this.t("now") : time(at, false)}
+        ${at === undefined ? this.t("now") : time(at, this.group === "cop")}
       </p>
       <div class="legend">
         ${(series ?? []).map((s) => {
@@ -563,13 +640,19 @@ export class HeatpumpCard extends LitElement {
             data-series=${s.role}
             @click=${() => {
               close();
-              this.info(s.role);
+              this.moreInfo(s.entityId);
             }}
           >
             <span class="swatch"></span>
-            <span class="label">${this.t(HeatpumpCard.LABELS[s.role]!)}</span>
+            <span class="label">${this.t(HeatpumpCard.LABELS[s.role])}</span>
             <strong
-              >${value === undefined ? "—" : `${this.number(value)} ${s.unit}`}</strong
+              >${
+                value === undefined
+                  ? "—"
+                  : s.unit === "COP"
+                    ? format(value, 2)
+                    : `${this.number(value)} ${s.unit}`
+              }</strong
             >
           </button>`;
         })}
@@ -720,14 +803,23 @@ export class HeatpumpCard extends LitElement {
         </div>
         <div class="water-info">
           <div class="eyebrow muted">${this.t("tank")}</div>
-          <div class="big">
+          <button
+            class="big"
+            data-history="water"
+            aria-label=${`${this.t("tank")} ${this.number(tank)} ${tankUnit}: ${this.t("history")}`}
+            @click=${() => void this.openHistory("water")}
+          >
             ${this.number(tank)}<span class="unit">${tankUnit}</span>
-          </div>
+          </button>
           ${this.stamp(tankRole)}
-          <div class="hint">
-            ${this.t("target")} ${this.number(target)}
-            ${targetUnit}${targetRole !== tankRole ? this.stamp(targetRole) : nothing}
-          </div>
+          <button
+            class="hint link"
+            data-history="waterTarget"
+            @click=${() => void this.openHistory("water")}
+          >
+            ${this.t("target")} ${this.number(target)} ${targetUnit}
+          </button>
+          ${targetRole !== tankRole ? this.stamp(targetRole) : nothing}
           ${roles.boost ? html`<button class=${`primary ${boosting ? "active" : ""}`} data-action="boost" ?disabled=${!this.enabled("boost")} @click=${() => void this.act("boost", "boost")}>${this.t(boosting ? "boosting" : "boost")}</button>${this.stamp("boost")}` : nothing}
         </div>
       </div>
@@ -765,7 +857,7 @@ export class HeatpumpCard extends LitElement {
               ${this.energy ? html`<span class="stale">${this.t("statisticsStale")}</span>` : nothing}`
           : nothing
       }
-      ${hasHeating ? efficiencyGroup("heating", this.energy, this.t, language(this.ha)) : nothing}${hasWater ? efficiencyGroup("water", this.energy, this.t, language(this.ha)) : nothing}
+      ${hasHeating ? efficiencyGroup("heating", this.energy, this.t, language(this.ha), () => void this.openHistory("cop")) : nothing}${hasWater ? efficiencyGroup("water", this.energy, this.t, language(this.ha), () => void this.openHistory("cop")) : nothing}
       <p class="hint">
         ${this.t("energyNote")}${this.energy ? html`<br />${this.t("through")} <time datetime=${new Date(this.energy.end).toISOString()}>${new Date(this.energy.end).toLocaleString(language(this.ha))}</time>` : nothing}
       </p>

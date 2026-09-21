@@ -1,20 +1,39 @@
-import type { Connection, HassEntity, Role } from "./types";
+import type { Connection, HassEntity } from "./types";
 import { available, numeric } from "./readings";
 
 /** Time (ms) and value; `undefined` breaks the line (unavailable). */
 export type Point = [number, number | undefined];
 export interface Series {
-  role: Role;
+  /** A card role, or a derived line such as `heatingCop`. */
+  role: string;
   entityId: string;
   unit: string;
   points: Point[];
 }
-export const RANGES = [6, 24, 168] as const;
-export type Range = (typeof RANGES)[number];
+/** An entity's state, or one of its attributes (a water heater's temperatures). */
+export interface Source {
+  role: string;
+  entityId: string;
+  attribute?: string;
+  unit?: string;
+}
+/** Readings over hours; COP, being daily, over days (all in hours). */
+export type HistoryGroup = "readings" | "water" | "cop";
+export const RANGES: Record<HistoryGroup, number[]> = {
+  readings: [6, 24, 168],
+  water: [6, 24, 168],
+  cop: [168, 720, 2160],
+};
+export const DEFAULT_RANGE: Record<HistoryGroup, number> = {
+  readings: 24,
+  water: 24,
+  cop: 720,
+};
 
-/** Home Assistant's compressed, minimal history row. */
+/** Home Assistant's compressed history row. */
 interface Row {
   s: string;
+  a?: Record<string, unknown>;
   lu?: number;
   lc?: number;
 }
@@ -25,36 +44,61 @@ interface Row {
  */
 export async function loadHistory(
   connection: Connection,
-  sources: Array<{ role: Role; entityId: string }>,
+  sources: Source[],
   states: Record<string, HassEntity>,
   hours: number,
   now = Date.now(),
 ): Promise<Series[]> {
   const start = now - hours * 3_600_000;
-  const reply = sources.length
-    ? await connection.sendMessagePromise<Record<string, Row[]>>({
-        type: "history/history_during_period",
-        start_time: new Date(start).toISOString(),
-        entity_ids: [...new Set(sources.map((s) => s.entityId))],
-        minimal_response: true,
-        no_attributes: true,
-        significant_changes_only: false,
-      })
-    : {};
-  const value = (state: string) =>
-    ["unavailable", "unknown", ""].includes(state) ? undefined : numeric(state);
-  return sources.map(({ role, entityId }) => {
-    const current = states[entityId];
-    const points: Point[] = (reply[entityId] ?? []).map((row) => [
+  // Attribute sources need attributes on every row; the others do not.
+  const ask = (list: Source[], attributes: boolean) =>
+    list.length
+      ? connection.sendMessagePromise<Record<string, Row[]>>({
+          type: "history/history_during_period",
+          start_time: new Date(start).toISOString(),
+          entity_ids: [...new Set(list.map((s) => s.entityId))],
+          minimal_response: !attributes,
+          no_attributes: !attributes,
+          significant_changes_only: false,
+        })
+      : Promise.resolve({} as Record<string, Row[]>);
+  const [withAttributes, plain] = await Promise.all([
+    ask(
+      sources.filter((s) => s.attribute),
+      true,
+    ),
+    ask(
+      sources.filter((s) => !s.attribute),
+      false,
+    ),
+  ]);
+  const read = (
+    source: Source,
+    state: string,
+    attributes?: Record<string, unknown>,
+  ) =>
+    ["unavailable", "unknown", ""].includes(state)
+      ? undefined
+      : numeric(source.attribute ? attributes?.[source.attribute] : state);
+  return sources.map((source) => {
+    const current = states[source.entityId];
+    const rows = (source.attribute ? withAttributes : plain)[source.entityId];
+    const points: Point[] = (rows ?? []).map((row) => [
       Math.max(start, (row.lu ?? row.lc ?? 0) * 1000),
-      value(row.s),
+      read(source, row.s, row.a),
     ]);
     if (current)
-      points.push([now, available(current) ? value(current.state) : undefined]);
+      points.push([
+        now,
+        available(current)
+          ? read(source, current.state, current.attributes)
+          : undefined,
+      ]);
     return {
-      role,
-      entityId,
-      unit: String(current?.attributes.unit_of_measurement ?? ""),
+      role: source.role,
+      entityId: source.entityId,
+      unit:
+        source.unit ?? String(current?.attributes.unit_of_measurement ?? ""),
       points,
     };
   });

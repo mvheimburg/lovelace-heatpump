@@ -65,17 +65,21 @@ export function chart(
   const hours = (end - start) / 3_600_000;
   const narrow = W < 480;
   const every =
-    hours <= 6
+    hours > 168
       ? narrow
-        ? 2
-        : 1
-      : hours <= 24
+        ? 336
+        : 168
+      : hours <= 6
         ? narrow
-          ? 6
-          : 4
-        : narrow
-          ? 48
-          : 24;
+          ? 2
+          : 1
+        : hours <= 24
+          ? narrow
+            ? 6
+            : 4
+          : narrow
+            ? 48
+            : 24;
   const xTicks: number[] = [];
   const hour = new Date(start);
   hour.setMinutes(0, 0, 0);
@@ -91,14 +95,15 @@ export function chart(
       xTicks.push(t);
   }
   // A setpoint holds until it is changed, so it steps; measurements are lines.
-  const STEPPED = new Set(["flowTarget"]);
+  const STEPPED = new Set(["flowTarget", "waterTarget"]);
   const path = (s: Series, sc: { min: number; max: number }) =>
     runs(s.points)
       .map((run) =>
         run
           .map(([t, v], i) => {
             const at = `${x(t).toFixed(1)},${y(v, sc).toFixed(1)}`;
-            if (!i) return `M${at}`;
+            // A lone reading between gaps is drawn as a dot.
+            if (!i) return run.length === 1 ? `M${at} h0.01` : `M${at}`;
             return STEPPED.has(s.role)
               ? `L${x(t).toFixed(1)},${y(run[i - 1][1], sc).toFixed(1)} L${at}`
               : `L${at}`;

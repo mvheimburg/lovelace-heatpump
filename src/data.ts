@@ -13,6 +13,8 @@ export interface EnergyData {
   heating?: Summary;
   water?: Summary;
   sources: Partial<Record<"heating" | "water", "external" | "recorder">>;
+  /** The statistic IDs the summary used, so a COP history reads the same data. */
+  ids: Partial<Record<"heating" | "water", { electric: string; heat: string }>>;
   start: number;
   end: number;
 }
@@ -51,7 +53,7 @@ async function fetchEnergy(
   now: number,
 ): Promise<EnergyData> {
   const range = windowRange(window, now),
-    result: EnergyData = { ...range, sources: {} };
+    result: EnergyData = { ...range, sources: {}, ids: {} };
   const requested = energyRoles.flatMap((r) =>
     roles[r] ? [external(roles[r]!), roles[r]!.entity_id] : [],
   );
@@ -96,6 +98,7 @@ async function fetchEnergy(
       useExternal ? external(e) : e.entity_id;
     if (![electric, heat].every((e) => supports(idFor(e)))) continue;
     result.sources[mode] = useExternal ? "external" : "recorder";
+    result.ids[mode] = { electric: idFor(electric), heat: idFor(heat) };
     result[mode] = summarize(
       {
         electric: stats[idFor(electric)] ?? [],

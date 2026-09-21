@@ -9,6 +9,7 @@ it("formats chart, table, totals and accessible balance with the selected locale
     start,
     end: start + 3600000,
     sources: {},
+    ids: {},
     heating: {
       status: "ready" as const,
       coverage: 1,

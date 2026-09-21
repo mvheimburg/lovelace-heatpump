@@ -601,3 +601,134 @@ it("explains a failed history request in Bokmål", async () => {
     "Varmepumpehistorikk",
   );
 });
+
+it("opens the tank and its target from the water heater, with the target as a step", async () => {
+  const now = Date.now();
+  const hass = fixture();
+  const s = (ms: number) => ms / 1000;
+  const original = hass.connection.sendMessagePromise;
+  const history = vi.fn(async (m: Record<string, unknown>) => ({
+    "water_heater.home": m.no_attributes
+      ? []
+      : [
+          {
+            s: "auto",
+            a: { current_temperature: 40, temperature: 50 },
+            lu: s(now - 20 * HOUR),
+          },
+          {
+            s: "auto",
+            a: { current_temperature: 53, temperature: 55 },
+            lu: s(now - 6 * HOUR),
+          },
+        ],
+  }));
+  hass.connection.sendMessagePromise = vi.fn(
+    async <T>(m: Record<string, unknown>) =>
+      m.type === "history/history_during_period"
+        ? ((await history(m)) as T)
+        : original<T>(m),
+  ) as HomeAssistant["connection"]["sendMessagePromise"];
+  const { c } = await card({}, hass);
+  (
+    c.shadowRoot!.querySelector('[data-history="water"]') as HTMLButtonElement
+  ).click();
+  await vi.waitFor(() => expect(legend(c).length).toBe(2));
+  expect(
+    c.shadowRoot!.querySelector("#history-title")!.textContent!.trim(),
+  ).toBe("Hot water history");
+  // The water heater's temperatures are attributes: one request with them.
+  expect(history).toHaveBeenCalledTimes(1);
+  expect(history.mock.calls[0][0]).toMatchObject({
+    entity_ids: ["water_heater.home"],
+    minimal_response: false,
+    no_attributes: false,
+  });
+  expect(legend(c)).toEqual([
+    "Tank temperature 48 °C",
+    "Hot water target 55 °C",
+  ]);
+  const target = c
+    .shadowRoot!.querySelector(".chart .s-waterTarget")!
+    .getAttribute("d")!;
+  // Stepped: two segments per change after the first reading.
+  expect(target.match(/L/g)).toHaveLength(4);
+  expect(
+    Array.from(c.shadowRoot!.querySelectorAll("[data-range]")).map((b) =>
+      b.getAttribute("data-range"),
+    ),
+  ).toEqual(["6", "24", "168"]);
+});
+
+it("opens COP per day from a measured COP, over days", async () => {
+  const hass = fixture();
+  const original = hass.connection.sendMessagePromise;
+  const energy = [
+    [
+      "sensor.heating_in",
+      "mypyllant_sys_device_0_consumed_electrical_energy_heating",
+    ],
+    ["sensor.heating_out", "mypyllant_sys_device_0_heat_generated_heating"],
+  ];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const calls: Record<string, unknown>[] = [];
+  hass.connection.sendMessagePromise = vi.fn(
+    async <T>(m: Record<string, unknown>) => {
+      calls.push(m);
+      if (m.type === "config/entity_registry/list")
+        return [
+          ...(await original<unknown[]>(m)),
+          ...energy.map(([id, unique]) => ({
+            entity_id: id,
+            unique_id: unique,
+            device_id: "pump",
+            config_entry_id: "home",
+            platform: "mypyllant",
+          })),
+        ] as T;
+      if (m.type === "recorder/get_statistics_metadata")
+        return energy.map(([id]) => ({
+          statistic_id: id,
+          has_sum: true,
+          statistics_unit_of_measurement: "kWh",
+        })) as T;
+      if (m.type === "recorder/statistics_during_period" && m.period === "hour")
+        return Object.fromEntries(
+          energy.map(([id], i) => [
+            id,
+            Array.from({ length: 30 }, (_, h) => ({
+              start: today.getTime() - (30 - h) * HOUR,
+              sum: h * (i ? 3 : 1),
+            })),
+          ]),
+        ) as T;
+      if (m.type === "recorder/statistics_during_period" && m.period === "day")
+        return {
+          "sensor.heating_in": [{ start: today.getTime(), change: 5 }],
+          "sensor.heating_out": [{ start: today.getTime(), change: 19 }],
+        } as T;
+      return original<T>(m);
+    },
+  ) as HomeAssistant["connection"]["sendMessagePromise"];
+  const { c } = await card({ show_efficiency: true, mode: "all" }, hass);
+  await vi.waitFor(() =>
+    expect(c.shadowRoot!.querySelector('[data-cop="heating"]')).not.toBeNull(),
+  );
+  (
+    c.shadowRoot!.querySelector('[data-cop="heating"]') as HTMLButtonElement
+  ).click();
+  await vi.waitFor(() => expect(legend(c)).toEqual(["Heating COP 3.80"]));
+  expect(
+    c.shadowRoot!.querySelector("#history-title")!.textContent!.trim(),
+  ).toBe("COP per day");
+  expect(calls.find((m) => m.period === "day")).toMatchObject({
+    statistic_ids: ["sensor.heating_in", "sensor.heating_out"],
+    types: ["change", "mean"],
+  });
+  expect(
+    Array.from(c.shadowRoot!.querySelectorAll("[data-range]")).map((b) =>
+      b.textContent!.trim(),
+    ),
+  ).toEqual(["7 days", "30 days", "90 days"]);
+});
