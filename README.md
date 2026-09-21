@@ -45,9 +45,12 @@ cop_window: 30d
 | `cop_window`               | `7d`                  | `24h`, `7d`, `30d`.                                                          |
 | `allow_curve_edit`         | `false`               | Expose heating curve and minimum flow number controls under Comfort.         |
 | `legionella_interval_days` | `7`                   | Reminder interval, not a protection schedule or a guarantee of sanitization. |
+| `cooling_entity`           | None                  | Heating/cooling switch outside myVAILLANT, described below.                  |
 | `entities`                 | Auto                  | Optional role overrides, listed below.                                       |
 
 Comfort shows current room temperature, target, available HVAC modes, flow readings, outdoor temperature and pressure. Expand **Warmer for a while** to start a myPyllant quick veto using the displayed target and chosen duration (1–12 hours). The integration's duration number appears while a veto is active; setting it to zero cancels it. Controls respect reported ranges, steps and availability.
+
+To switch between heating and cooling with your own control, set `cooling_entity` to a `switch` or `input_boolean` (for example one that changes over your heat pump or its circuits). Comfort then shows a **Heating | Cooling** switch: **Cooling** turns the entity on, **Heating** turns it off. The card sends only that call; it does not change myVAILLANT's operating mode. If the entity is unavailable or missing, the switch is disabled and says so. The visual editor lists your switches and input booleans.
 
 Hot water shows tank temperature relative to its target and a boost button with explicit active/stop state. **The filled column is temperature relative to target, not a percentage of remaining hot water or a shower count.** The legionella reminder displays the integration's last reported temperature-reached date, including unknown or future dates.
 
@@ -127,14 +130,14 @@ Choose **Color scheme** in the card's visual editor. The setting is per card and
 works with both **Default** and **Bubble** appearance, including in-card dialogs.
 Every card supplied by this package offers the same choices:
 
-| Scheme | YAML value | Palette |
-| --- | --- | --- |
+| Scheme                   | YAML value       | Palette                                                 |
+| ------------------------ | ---------------- | ------------------------------------------------------- |
 | Home Assistant (default) | `home-assistant` | Follows your dashboard theme and Bubble color variables |
-| Bright | `bright` | White surfaces with blue accents |
-| Warm | `warm` | Ivory surfaces with warm brown accents |
-| Mint | `mint` | Pale green surfaces with green accents |
-| Sky | `sky` | Pale blue surfaces with blue accents |
-| Lavender | `lavender` | Pale purple surfaces with purple accents |
+| Bright                   | `bright`         | White surfaces with blue accents                        |
+| Warm                     | `warm`           | Ivory surfaces with warm brown accents                  |
+| Mint                     | `mint`           | Pale green surfaces with green accents                  |
+| Sky                      | `sky`            | Pale blue surfaces with blue accents                    |
+| Lavender                 | `lavender`       | Pale purple surfaces with purple accents                |
 
 For example, add these options to your existing card configuration:
 

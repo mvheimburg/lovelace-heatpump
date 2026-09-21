@@ -86,6 +86,8 @@ export interface CardConfig {
   show_hot_water?: boolean;
   allow_curve_edit?: boolean;
   legionella_interval_days?: number;
+  /** A switch or input_boolean outside myVAILLANT: on = cooling, off = heating. */
+  cooling_entity?: string;
   entities?: Partial<Record<Role, string>>;
 }
 export interface Statistic {

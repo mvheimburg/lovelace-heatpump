@@ -13,7 +13,7 @@ import {
   type EnergyData,
 } from "./data";
 import { Readings, available, numeric } from "./readings";
-import { actionPayload, perform, type Action } from "./actions";
+import { actionPayload, coolingPayload, perform, type Action } from "./actions";
 import { modeLabel, language, localize, type TextKey } from "./localize";
 import { efficiencyGroup } from "./efficiency";
 import { styles } from "./styles";
@@ -232,18 +232,25 @@ export class HeatpumpCard extends LitElement {
     value?: unknown,
   ): Promise<void> {
     if (!this.enabled(role) || !this.ha || !this.config) return;
-    const ticket = ++this.actionEpoch;
-    try {
-      const entity = this.ha.states[this.found.roles[role]!.entity_id];
-      const payload = actionPayload(
+    const entity = this.ha.states[this.found.roles[role]!.entity_id];
+    const config = this.config;
+    await this.send(() =>
+      actionPayload(
         role,
         action,
         entity,
-        this.config,
+        config,
         value,
         this.vetoHours,
         this.temperatureUnit(),
-      );
+      ),
+    );
+  }
+  private async send(build: () => ReturnType<typeof actionPayload>) {
+    if (this.pending || !this.ha) return;
+    const ticket = ++this.actionEpoch;
+    try {
+      const payload = build();
       this.pending = true;
       this.failed = false;
       this.feedback = this.t("pending");
@@ -297,6 +304,37 @@ export class HeatpumpCard extends LitElement {
       />${this.stamp(role)}</label
     >`;
   }
+  /** Heating/cooling selector for an external switch (on = cooling). */
+  private season() {
+    const id = this.config?.cooling_entity;
+    if (!id) return nothing;
+    const entity = this.ha?.states[id];
+    const known = available(entity) && ["on", "off"].includes(entity.state);
+    const cooling = entity?.state === "on";
+    const enabled = this.ready && !this.pending && known;
+    const option = (value: boolean, label: TextKey) => {
+      const selected = known && value === cooling;
+      return html`<button
+        type="button"
+        class=${`segment ${selected ? "selected" : ""}`}
+        data-season=${value ? "cooling" : "heating"}
+        aria-pressed=${selected ? "true" : "false"}
+        ?disabled=${!enabled}
+        @click=${() => {
+          if (!selected)
+            void this.send(() => coolingPayload(this.ha?.states[id], value));
+        }}
+      >
+        ${this.t(label)}
+      </button>`;
+    };
+    return html`<div class="season-row">
+      <div class="season" role="group" aria-label=${this.t("season")}>
+        ${option(false, "heating")}${option(true, "cool")}
+      </div>
+      ${known ? nothing : html`<span class="stale">${this.t(entity ? "unavailable" : "coolingMissing")}</span>`}
+    </div>`;
+  }
   private chip(role: Role, label: TextKey) {
     if (!this.found.roles[role]) return nothing;
     const e = this.reading(role).entity;
@@ -318,6 +356,7 @@ export class HeatpumpCard extends LitElement {
       : [];
     return html`<section data-panel="comfort">
       <h3>${this.t("comfort")}</h3>
+      ${this.season()}
       <div class="row between">
         <div>
           <div class="eyebrow muted">${this.t("current")}</div>

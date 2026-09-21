@@ -304,3 +304,99 @@ it("refreshes an existing validation message when editor language changes", asyn
   await editor.updateComplete;
   expect(input.validationMessage).toBe("Ugyldig verdi");
 });
+it("switches between heating and cooling through a configured external switch", async () => {
+  const hass = fixture();
+  hass.states["switch.cooling"] = state("switch.cooling", "off");
+  const { c } = await card({ cooling_entity: "switch.cooling" }, hass);
+  const segment = (season: string) =>
+    c.shadowRoot!.querySelector<HTMLButtonElement>(
+      `[data-season="${season}"]`,
+    )!;
+  expect(segment("heating").getAttribute("aria-pressed")).toBe("true");
+  expect(segment("cooling").getAttribute("aria-pressed")).toBe("false");
+  segment("heating").click();
+  expect(hass.callService).not.toHaveBeenCalled();
+  segment("cooling").click();
+  segment("cooling").click();
+  await vi.waitFor(() =>
+    expect(hass.callService).toHaveBeenCalledWith("switch", "turn_on", {
+      entity_id: "switch.cooling",
+    }),
+  );
+  expect(hass.callService).toHaveBeenCalledTimes(1);
+  hass.states["switch.cooling"] = state("switch.cooling", "on");
+  c.hass = { ...hass };
+  await c.updateComplete;
+  expect(segment("cooling").getAttribute("aria-pressed")).toBe("true");
+  segment("heating").click();
+  await vi.waitFor(() =>
+    expect(hass.callService).toHaveBeenCalledWith("switch", "turn_off", {
+      entity_id: "switch.cooling",
+    }),
+  );
+});
+it("disables the heating/cooling switch when its entity is unavailable or missing, in Bokmål", async () => {
+  const hass = { ...fixture(), language: "nb" };
+  hass.states["input_boolean.kjoling"] = state(
+    "input_boolean.kjoling",
+    "unavailable",
+  );
+  const { c } = await card({ cooling_entity: "input_boolean.kjoling" }, hass);
+  const group = c.shadowRoot!.querySelector(".season")!;
+  expect(group.getAttribute("aria-label")).toBe("Varme eller kjøling");
+  expect(group.textContent).toContain("Oppvarming");
+  expect(group.textContent).toContain("Kjøling");
+  const buttons = group.querySelectorAll("button");
+  expect(Array.from(buttons).every((b) => b.disabled)).toBe(true);
+  expect(c.shadowRoot!.querySelector(".season-row")?.textContent).toContain(
+    "Utilgjengelig",
+  );
+  c.setConfig({
+    type: "custom:heatpump-card",
+    entity: "climate.home",
+    cooling_entity: "switch.gone",
+  });
+  await c.updateComplete;
+  expect(c.shadowRoot!.querySelector(".season-row")?.textContent).toContain(
+    "Fant ikke bryteren",
+  );
+  c.setConfig({ type: "custom:heatpump-card", entity: "climate.home" });
+  await c.updateComplete;
+  expect(c.shadowRoot!.querySelector(".season")).toBeNull();
+  expect(() =>
+    c.setConfig({
+      type: "custom:heatpump-card",
+      entity: "climate.home",
+      cooling_entity: "climate.home",
+    }),
+  ).toThrow(/cooling_entity/);
+});
+it("sets the heating/cooling switch from the editor", async () => {
+  const editor = new HeatpumpEditor();
+  const hass = fixture();
+  hass.states["switch.cooling"] = state("switch.cooling", "off");
+  editor.hass = hass;
+  editor.setConfig({ type: "custom:heatpump-card", entity: "climate.home" });
+  document.body.append(editor);
+  mounted.push(editor);
+  await editor.updateComplete;
+  expect(
+    Array.from(
+      editor.shadowRoot!.querySelectorAll("#cooling-switches option"),
+      (o) => o.getAttribute("value"),
+    ),
+  ).toEqual(["switch.boost", "switch.cooling"]);
+  const event = vi.fn();
+  editor.addEventListener("config-changed", event);
+  const input = editor.shadowRoot!.querySelector<HTMLInputElement>(
+    '[data-config="cooling_entity"]',
+  )!;
+  input.value = "switch.cooling";
+  input.dispatchEvent(new Event("change"));
+  expect(event.mock.calls[0][0].detail.config).toMatchObject({
+    cooling_entity: "switch.cooling",
+  });
+  input.value = "sensor.nope";
+  input.dispatchEvent(new Event("change"));
+  expect(event).toHaveBeenCalledTimes(1);
+});

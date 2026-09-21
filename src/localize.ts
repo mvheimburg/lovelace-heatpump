@@ -112,6 +112,9 @@ const en = {
   energyNote: "Energy values cover matching valid hours only.",
   statisticsStale: "Previously loaded statistics",
   config: "Configuration",
+  season: "Heating or cooling",
+  cooling_entity: "Heating/cooling switch (on = cooling)",
+  coolingMissing: "Heating/cooling switch not found",
 };
 const nb: typeof en = {
   off: "Av",
@@ -215,6 +218,9 @@ const nb: typeof en = {
   energyNote: "Energiverdiene gjelder bare sammenfallende gyldige timer.",
   statisticsStale: "Tidligere lastet statistikk",
   config: "Konfigurasjon",
+  season: "Varme eller kjøling",
+  cooling_entity: "Bryter for varme/kjøling (på = kjøling)",
+  coolingMissing: "Fant ikke bryteren for varme/kjøling",
 };
 export type TextKey = keyof typeof en;
 export function localize(language: string | undefined, key: TextKey): string {

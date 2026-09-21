@@ -185,6 +185,46 @@ export const styles = css`
     );
     border-radius: var(--bubble-sub-button-border-radius, 12px);
   }
+  .season-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .season {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(
+      --bubble-secondary-background-color,
+      var(--secondary-background-color, #f1f4f1)
+    );
+  }
+  .season .segment {
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    padding: 0 18px;
+    font-weight: 550;
+  }
+  .season .segment.selected[data-season="heating"] {
+    background: var(--hp-warm);
+    color: #fff;
+  }
+  .season .segment.selected[data-season="cooling"] {
+    background: var(--hp-water);
+    color: #fff;
+  }
+  .season .segment:disabled {
+    opacity: 1;
+    color: var(--secondary-text-color, #627370);
+  }
+  .season .segment.selected:disabled {
+    opacity: 0.6;
+    color: #fff;
+  }
   .controls {
     display: flex;
     gap: 12px;

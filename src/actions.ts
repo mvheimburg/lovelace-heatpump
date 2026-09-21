@@ -91,6 +91,21 @@ export function actionPayload(
     data: { ...data, [isNumber ? "value" : "temperature"]: number },
   };
 }
+/** Heating/cooling selector: an external on/off entity where on = cooling. */
+export function coolingPayload(
+  entity: HassEntity | undefined,
+  cooling: boolean,
+): { domain: string; service: string; data: Record<string, unknown> } {
+  if (!available(entity) || !["on", "off"].includes(entity.state))
+    throw Error("unavailable");
+  const domain = entity.entity_id.split(".")[0];
+  if (!["switch", "input_boolean"].includes(domain)) throw Error("unavailable");
+  return {
+    domain,
+    service: cooling ? "turn_on" : "turn_off",
+    data: { entity_id: entity.entity_id },
+  };
+}
 export async function perform(
   hass: HomeAssistant,
   payload: ReturnType<typeof actionPayload>,

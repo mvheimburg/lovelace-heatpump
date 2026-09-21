@@ -114,6 +114,12 @@ add(
   "off",
   { diagnostic_trouble_codes: ["F.22 · Low water pressure"] },
 );
+states["switch.cooling"] = {
+  entity_id: "switch.cooling",
+  state: "off",
+  attributes: {},
+  last_updated: new Date().toISOString(),
+};
 const stats: Statistics = { "sensor.outdoor": [] };
 for (const mode of ["heating", "water"])
   for (const kind of ["Electric", "Heat", "Environment"]) {
@@ -203,6 +209,7 @@ for (const [mode, mount] of [
     entity: "climate.home",
     mode,
     appearance: "bubble",
+    cooling_entity: "switch.cooling",
     name:
       mode === "efficiency"
         ? "Where the warmth comes from"

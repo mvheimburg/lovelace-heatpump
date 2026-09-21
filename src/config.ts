@@ -27,6 +27,12 @@ export function normalizeConfig(config: CardConfig): CardConfig {
   if (config.entity && !config.entity.startsWith("climate."))
     throw new Error("entity must be a climate entity");
   if (
+    config.cooling_entity !== undefined &&
+    (typeof config.cooling_entity !== "string" ||
+      !/^(switch|input_boolean)\.\w+$/.test(config.cooling_entity))
+  )
+    throw new Error("cooling_entity must be a switch or input_boolean");
+  if (
     config.legionella_interval_days !== undefined &&
     (!Number.isFinite(config.legionella_interval_days) ||
       config.legionella_interval_days <= 0)

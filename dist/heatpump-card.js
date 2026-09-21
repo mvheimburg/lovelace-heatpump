@@ -232,6 +232,10 @@ function normalizeConfig(config) {
             throw new Error(`Invalid ${key}`);
     if (config.entity && !config.entity.startsWith("climate."))
         throw new Error("entity must be a climate entity");
+    if (config.cooling_entity !== undefined &&
+        (typeof config.cooling_entity !== "string" ||
+            !/^(switch|input_boolean)\.\w+$/.test(config.cooling_entity)))
+        throw new Error("cooling_entity must be a switch or input_boolean");
     if (config.legionella_interval_days !== undefined &&
         (!Number.isFinite(config.legionella_interval_days) ||
             config.legionella_interval_days <= 0))
@@ -769,6 +773,19 @@ function actionPayload(role, action, entity, config, value, duration, temperatur
         data: { ...data, [isNumber ? "value" : "temperature"]: number },
     };
 }
+/** Heating/cooling selector: an external on/off entity where on = cooling. */
+function coolingPayload(entity, cooling) {
+    if (!available(entity) || !["on", "off"].includes(entity.state))
+        throw Error("unavailable");
+    const domain = entity.entity_id.split(".")[0];
+    if (!["switch", "input_boolean"].includes(domain))
+        throw Error("unavailable");
+    return {
+        domain,
+        service: cooling ? "turn_on" : "turn_off",
+        data: { entity_id: entity.entity_id },
+    };
+}
 async function perform(hass, payload) {
     await hass.callService(payload.domain, payload.service, payload.data);
 }
@@ -882,6 +899,9 @@ const en = {
     energyNote: "Energy values cover matching valid hours only.",
     statisticsStale: "Previously loaded statistics",
     config: "Configuration",
+    season: "Heating or cooling",
+    cooling_entity: "Heating/cooling switch (on = cooling)",
+    coolingMissing: "Heating/cooling switch not found",
 };
 const nb = {
     off: "Av",
@@ -979,6 +999,9 @@ const nb = {
     energyNote: "Energiverdiene gjelder bare sammenfallende gyldige timer.",
     statisticsStale: "Tidligere lastet statistikk",
     config: "Konfigurasjon",
+    season: "Varme eller kjøling",
+    cooling_entity: "Bryter for varme/kjøling (på = kjøling)",
+    coolingMissing: "Fant ikke bryteren for varme/kjøling",
 };
 function localize(language, key) {
     return /^(nb|nn|no)(-|$)/.test((language ?? "").replace(/_/g, "-").toLowerCase())
@@ -1271,6 +1294,46 @@ const styles = i$4 `
       var(--secondary-background-color, #f1f4f1)
     );
     border-radius: var(--bubble-sub-button-border-radius, 12px);
+  }
+  .season-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .season {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(
+      --bubble-secondary-background-color,
+      var(--secondary-background-color, #f1f4f1)
+    );
+  }
+  .season .segment {
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    padding: 0 18px;
+    font-weight: 550;
+  }
+  .season .segment.selected[data-season="heating"] {
+    background: var(--hp-warm);
+    color: #fff;
+  }
+  .season .segment.selected[data-season="cooling"] {
+    background: var(--hp-water);
+    color: #fff;
+  }
+  .season .segment:disabled {
+    opacity: 1;
+    color: var(--secondary-text-color, #627370);
+  }
+  .season .segment.selected:disabled {
+    opacity: 0.6;
+    color: #fff;
   }
   .controls {
     display: flex;
@@ -1592,7 +1655,11 @@ class HeatpumpEditor extends i$1 {
       ${colorSchemeSelector(this.hass, this.config.color_scheme, (scheme) => {
             this.config = { ...this.config, color_scheme: scheme };
             this.requestUpdate();
-            this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: { ...this.config } }, bubbles: true, composed: true }));
+            this.dispatchEvent(new CustomEvent("config-changed", {
+                detail: { config: { ...this.config } },
+                bubbles: true,
+                composed: true,
+            }));
         })}
       <p class="hint">${this.t("editorHint")}</p>
       <label
@@ -1614,6 +1681,19 @@ class HeatpumpEditor extends i$1 {
           .value=${l(this.config.entry ?? "")}
           @change=${(e) => this.change("entry", e)}
       /></label>
+      <label
+        >${this.t("cooling_entity")}<input
+          data-config="cooling_entity"
+          list="cooling-switches"
+          .value=${l(this.config.cooling_entity ?? "")}
+          placeholder="switch.…"
+          @change=${(e) => this.change("cooling_entity", e)}
+        /><datalist id="cooling-switches">
+          ${Object.keys(this.hass?.states ?? {})
+            .filter((id) => /^(switch|input_boolean)\./.test(id))
+            .map((id) => b `<option value=${id}></option>`)}
+        </datalist></label
+      >
       <label
         >${this.t("name")}<input
           data-config="name"
@@ -1833,10 +1913,16 @@ class HeatpumpCard extends i$1 {
     async act(role, action, value) {
         if (!this.enabled(role) || !this.ha || !this.config)
             return;
+        const entity = this.ha.states[this.found.roles[role].entity_id];
+        const config = this.config;
+        await this.send(() => actionPayload(role, action, entity, config, value, this.vetoHours, this.temperatureUnit()));
+    }
+    async send(build) {
+        if (this.pending || !this.ha)
+            return;
         const ticket = ++this.actionEpoch;
         try {
-            const entity = this.ha.states[this.found.roles[role].entity_id];
-            const payload = actionPayload(role, action, entity, this.config, value, this.vetoHours, this.temperatureUnit());
+            const payload = build();
             this.pending = true;
             this.failed = false;
             this.feedback = this.t("pending");
@@ -1889,6 +1975,38 @@ class HeatpumpCard extends i$1 {
       />${this.stamp(role)}</label
     >`;
     }
+    /** Heating/cooling selector for an external switch (on = cooling). */
+    season() {
+        const id = this.config?.cooling_entity;
+        if (!id)
+            return A;
+        const entity = this.ha?.states[id];
+        const known = available(entity) && ["on", "off"].includes(entity.state);
+        const cooling = entity?.state === "on";
+        const enabled = this.ready && !this.pending && known;
+        const option = (value, label) => {
+            const selected = known && value === cooling;
+            return b `<button
+        type="button"
+        class=${`segment ${selected ? "selected" : ""}`}
+        data-season=${value ? "cooling" : "heating"}
+        aria-pressed=${selected ? "true" : "false"}
+        ?disabled=${!enabled}
+        @click=${() => {
+                if (!selected)
+                    void this.send(() => coolingPayload(this.ha?.states[id], value));
+            }}
+      >
+        ${this.t(label)}
+      </button>`;
+        };
+        return b `<div class="season-row">
+      <div class="season" role="group" aria-label=${this.t("season")}>
+        ${option(false, "heating")}${option(true, "cool")}
+      </div>
+      ${known ? A : b `<span class="stale">${this.t(entity ? "unavailable" : "coolingMissing")}</span>`}
+    </div>`;
+    }
     chip(role, label) {
         if (!this.found.roles[role])
             return A;
@@ -1910,6 +2028,7 @@ class HeatpumpCard extends i$1 {
             : [];
         return b `<section data-panel="comfort">
       <h3>${this.t("comfort")}</h3>
+      ${this.season()}
       <div class="row between">
         <div>
           <div class="eyebrow muted">${this.t("current")}</div>

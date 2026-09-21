@@ -81,7 +81,13 @@ export class HeatpumpEditor extends LitElement {
       ${colorSchemeSelector(this.hass, this.config.color_scheme, (scheme) => {
         this.config = { ...this.config, color_scheme: scheme };
         this.requestUpdate();
-        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: { ...this.config } }, bubbles: true, composed: true }));
+        this.dispatchEvent(
+          new CustomEvent("config-changed", {
+            detail: { config: { ...this.config } },
+            bubbles: true,
+            composed: true,
+          }),
+        );
       })}
       <p class="hint">${this.t("editorHint")}</p>
       <label
@@ -103,6 +109,19 @@ export class HeatpumpEditor extends LitElement {
           .value=${live(this.config.entry ?? "")}
           @change=${(e: Event) => this.change("entry", e)}
       /></label>
+      <label
+        >${this.t("cooling_entity")}<input
+          data-config="cooling_entity"
+          list="cooling-switches"
+          .value=${live(this.config.cooling_entity ?? "")}
+          placeholder="switch.…"
+          @change=${(e: Event) => this.change("cooling_entity", e)}
+        /><datalist id="cooling-switches">
+          ${Object.keys(this.hass?.states ?? {})
+            .filter((id) => /^(switch|input_boolean)\./.test(id))
+            .map((id) => html`<option value=${id}></option>`)}
+        </datalist></label
+      >
       <label
         >${this.t("name")}<input
           data-config="name"
