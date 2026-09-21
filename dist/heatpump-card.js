@@ -1889,12 +1889,26 @@ function chart(series, start, end, hover, text, W = 600) {
             : h % every === 0)
             xTicks.push(t);
     }
+    // A setpoint holds until it is changed, so it steps; measurements are lines.
+    const STEPPED = new Set(["flowTarget"]);
     const path = (s, sc) => runs(s.points)
         .map((run) => run
-        .map(([t, v], i) => `${i ? "L" : "M"}${x(t).toFixed(1)},${y(v, sc).toFixed(1)}`)
+        .map(([t, v], i) => {
+        const at = `${x(t).toFixed(1)},${y(v, sc).toFixed(1)}`;
+        if (!i)
+            return `M${at}`;
+        return STEPPED.has(s.role)
+            ? `L${x(t).toFixed(1)},${y(run[i - 1][1], sc).toFixed(1)} L${at}`
+            : `L${at}`;
+    })
         .join(" "))
         .join(" ");
-    const digits = r && r.max - r.min < 5 ? 1 : 0;
+    // As many decimals as the tick spacing needs, so 57.5 never shows as 58.
+    const decimals = (marks) => marks.length > 1
+        ? Math.min(2, (String(Number((marks[1] - marks[0]).toFixed(6))).split(".")[1] ?? "")
+            .length)
+        : 0;
+    const digits = r ? decimals(r.marks) : 0;
     return w `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label=${text.label}>
     <title>${text.label}</title>
     ${(l ?? r)?.marks.map((v) => {
@@ -1902,7 +1916,7 @@ function chart(series, start, end, hover, text, W = 600) {
         return w `<line class="grid" x1=${LEFT} x2=${RIGHT} y1=${y(v, sc)} y2=${y(v, sc)}></line>`;
     })}
     ${l
-        ? l.marks.map((v) => w `<text class="axis" x=${LEFT - 6} y=${y(v, l) + 4} text-anchor="end">${text.number(v, 0)}°</text>`)
+        ? l.marks.map((v) => w `<text class="axis" x=${LEFT - 6} y=${y(v, l) + 4} text-anchor="end">${text.number(v, decimals(l.marks))}°</text>`)
         : A}
     ${r
         ? r.marks.map((v) => w `<text class="axis" x=${RIGHT + 6} y=${y(v, r) + 4}>${text.number(v, digits)}</text>`)

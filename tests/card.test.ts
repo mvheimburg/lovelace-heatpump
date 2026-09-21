@@ -510,6 +510,21 @@ it("opens one history of flow, flow target, outdoor and pressure from any readin
       t.textContent!.includes("bar"),
     ),
   ).toBe(true);
+  // The flow target is a setpoint: it holds, then steps to the current value.
+  expect(
+    c
+      .shadowRoot!.querySelector(".chart .s-flowTarget")!
+      .getAttribute("d")!
+      .match(/L/g),
+  ).toHaveLength(2);
+  // Tick labels carry the decimals their spacing needs, and no more.
+  const pressureTicks = Array.from(
+    c.shadowRoot!.querySelectorAll(".chart .axis"),
+  )
+    .map((t) => t.textContent!.trim())
+    .filter((t) => /^1\.\d+$/.test(t));
+  expect(pressureTicks.length).toBeGreaterThan(1);
+  expect(pressureTicks.every((t) => /^1\.\d$/.test(t))).toBe(true);
   // The unavailable spell splits the flow line in two.
   expect(
     c
