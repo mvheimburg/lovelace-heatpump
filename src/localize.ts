@@ -91,7 +91,7 @@ const en = {
   plot: "COP and outdoor temperature",
   plotEmpty: "No matching outdoor-temperature history",
   plotHint:
-    "Each point is one paired hour. COP alone does not establish the best heating curve.",
+    "Each point is one paired hour with at least 0.05 kWh of electricity. COP alone does not establish the best heating curve.",
   recorderHint:
     "Recorder counters: late cloud updates can distort hourly points.",
   externalHint: "myVAILLANT hourly statistics",
@@ -209,7 +209,7 @@ const nb: typeof en = {
   plot: "COP og utetemperatur",
   plotEmpty: "Ingen sammenfallende historikk for utetemperatur",
   plotHint:
-    "Hvert punkt er én sammenfallende time. COP alene avgjør ikke riktig varmekurve.",
+    "Hvert punkt er én sammenfallende time med minst 0,05 kWh strøm. COP alene avgjør ikke riktig varmekurve.",
   recorderHint:
     "Recorder-tellere: forsinkede skyoppdateringer kan forvrenge timepunktene.",
   externalHint: "Timestatistikk fra myVAILLANT",

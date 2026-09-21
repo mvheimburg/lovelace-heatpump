@@ -447,6 +447,11 @@ function discover(registry, states, config) {
 }
 
 const HOUR = 3600000;
+/**
+ * An hour's COP point needs at least this much electricity; in standby hours
+ * a trickle of input makes the ratio meaningless (e.g. 54). Totals keep them.
+ */
+const MIN_POINT_KWH = 0.05;
 function finite(value) {
     return typeof value === "number" && Number.isFinite(value);
 }
@@ -487,7 +492,7 @@ function summarize(series, start, end) {
         }
         const temperature = outdoor.get(time);
         if (temperature !== undefined &&
-            electric > 0 &&
+            electric >= MIN_POINT_KWH &&
             Number.isFinite(generated / electric))
             result.points.push({
                 start: time,
@@ -881,7 +886,7 @@ const en = {
     partial: "Paired hourly coverage",
     plot: "COP and outdoor temperature",
     plotEmpty: "No matching outdoor-temperature history",
-    plotHint: "Each point is one paired hour. COP alone does not establish the best heating curve.",
+    plotHint: "Each point is one paired hour with at least 0.05 kWh of electricity. COP alone does not establish the best heating curve.",
     recorderHint: "Recorder counters: late cloud updates can distort hourly points.",
     externalHint: "myVAILLANT hourly statistics",
     through: "Complete hours through",
@@ -993,7 +998,7 @@ const nb = {
     partial: "Dekning av sammenfallende timer",
     plot: "COP og utetemperatur",
     plotEmpty: "Ingen sammenfallende historikk for utetemperatur",
-    plotHint: "Hvert punkt er én sammenfallende time. COP alene avgjør ikke riktig varmekurve.",
+    plotHint: "Hvert punkt er én sammenfallende time med minst 0,05 kWh strøm. COP alene avgjør ikke riktig varmekurve.",
     recorderHint: "Recorder-tellere: forsinkede skyoppdateringer kan forvrenge timepunktene.",
     externalHint: "Timestatistikk fra myVAILLANT",
     through: "Hele timer frem til",

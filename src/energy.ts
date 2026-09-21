@@ -1,5 +1,10 @@
 import type { Statistic, Window } from "./types";
 export const HOUR = 3_600_000;
+/**
+ * An hour's COP point needs at least this much electricity; in standby hours
+ * a trickle of input makes the ratio meaningless (e.g. 54). Totals keep them.
+ */
+export const MIN_POINT_KWH = 0.05;
 export interface Series {
   electric: Statistic[];
   heat: Statistic[];
@@ -71,7 +76,7 @@ export function summarize(series: Series, start: number, end: number): Summary {
     const temperature = outdoor.get(time);
     if (
       temperature !== undefined &&
-      electric > 0 &&
+      electric >= MIN_POINT_KWH &&
       Number.isFinite(generated / electric)
     )
       result.points.push({

@@ -127,3 +127,30 @@ it("does not claim no operation when heat rose without recorded electricity", ()
   expect(r.cop).toBeUndefined();
   expect(r.heat).toBe(6);
 });
+
+it("leaves standby hours out of the COP points but keeps them in the totals", () => {
+  const r = summarize(
+    {
+      electric: [
+        { start: START - HOUR, sum: 0 },
+        { start: START, sum: 1 },
+        { start: START + HOUR, sum: 1.01 },
+      ],
+      heat: [
+        { start: START - HOUR, sum: 0 },
+        { start: START, sum: 3 },
+        { start: START + HOUR, sum: 3.54 },
+      ],
+      outdoor: [
+        { start: START, mean: 5 },
+        { start: START + HOUR, mean: 5 },
+      ],
+    },
+    START,
+    START + 2 * HOUR,
+  );
+  // 0.01 kWh in, 0.54 kWh out would plot as COP 54.
+  expect(r.points).toEqual([{ start: START, temperature: 5, cop: 3 }]);
+  expect(r.electric).toBeCloseTo(1.01);
+  expect(r.heat).toBeCloseTo(3.54);
+});

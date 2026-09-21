@@ -96,7 +96,7 @@ For each heating/hot-water pair:
 4. Subtract adjacent cumulative `sum` values. Skip negative deltas and missing or nonfinite values. Never bridge a missing hour to make an hourly estimate.
 5. Pair electricity and generated heat by timestamp. COP is **sum of generated heat / sum of electricity** for those same valid hours, not the average of hourly COP values.
 
-Zero electricity produces no COP. No usable statistics produces a missing-data message, not zero consumption. Coverage is shown for every result; incomplete results describe only the usable paired hours. A reset excludes its interval. A six-hour gap also excludes the recovery interval when its change cannot be allocated to a single hour. HA may already compensate `total_increasing` resets in its recorded `sum`.
+Zero electricity produces no COP. In the COP-and-outdoor plot, an hour with under 0.05 kWh of electricity (standby) is not plotted, since a trickle of input gives meaningless ratios such as 54; it still counts in the totals (0.5.1). No usable statistics produces a missing-data message, not zero consumption. Coverage is shown for every result; incomplete results describe only the usable paired hours. A reset excludes its interval. A six-hour gap also excludes the recovery interval when its change cannot be allocated to a single hour. HA may already compensate `total_increasing` resets in its recorded `sum`.
 
 The stacked bar shows independently reported electricity and environmental energy, with reported heat output beside it. Environmental energy is omitted if it does not cover every paired energy hour; it is never inferred as `heat - electricity`. Sensor timing or losses can mean the inputs and output differ.
 
