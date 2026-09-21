@@ -50,6 +50,10 @@ cop_window: 30d
 
 Comfort shows current room temperature, target, available HVAC modes, flow readings, outdoor temperature and pressure. Expand **Warmer for a while** to start a myPyllant quick veto using the displayed target and chosen duration (1–12 hours). The integration's duration number appears while a veto is active; setting it to zero cancels it. Controls respect reported ranges, steps and availability.
 
+Tap any of the readings (flow, flow target, outdoor, pressure) to open their **history together** in one chart: temperatures on the left-hand scale, water pressure on the right in its own unit, flow target dashed. Choose 6 hours, 24 hours (the default) or 7 days. Move the pointer or a finger across the chart to read every value at that moment; otherwise the legend shows the current values, and tapping a legend entry opens that sensor in Home Assistant. Unavailable spells are left as gaps. The data comes from Home Assistant's recorder (0.4.0).
+
+![Flow, flow target, outdoor temperature and water pressure in one history chart](docs/heatpump-history.png)
+
 To switch between heating and cooling with your own control, set `cooling_entity` to a `switch` or `input_boolean` (for example one that changes over your heat pump or its circuits). Comfort then shows a **Heating | Cooling** switch: **Cooling** turns the entity on, **Heating** turns it off. The card sends only that call; it does not change myVAILLANT's operating mode. If the entity is unavailable or missing, the switch is disabled and says so. The visual editor lists your switches and input booleans.
 
 Hot water shows tank temperature relative to its target and a boost button with explicit active/stop state. **The filled column is temperature relative to target, not a percentage of remaining hot water or a shower count.** The legionella reminder displays the integration's last reported temperature-reached date, including unknown or future dates.

@@ -400,3 +400,189 @@ it("sets the heating/cooling switch from the editor", async () => {
   input.dispatchEvent(new Event("change"));
   expect(event).toHaveBeenCalledTimes(1);
 });
+
+const HOUR = 3_600_000;
+/** The fixture plus flow, flow target, outdoor and pressure, with history. */
+function withReadings(now: number, fail?: Error) {
+  const hass = fixture();
+  const s = (ms: number) => ms / 1000;
+  const extra = [
+    ["sensor.flow", "mypyllant_sys_circuit_0_flow_temperature", "31.5", "°C"],
+    [
+      "sensor.flow_target",
+      "mypyllant_sys_circuit_0_flow_temperature_setpoint",
+      "28.6",
+      "°C",
+    ],
+    ["sensor.outdoor", "mypyllant_sys_home_outdoor_temperature", "13.7", "°C"],
+    ["sensor.pressure", "mypyllant_sys_home_water_pressure", "1.4", "bar"],
+  ];
+  for (const [id, , value, unit] of extra)
+    hass.states[id] = state(id, value, {
+      unit_of_measurement: unit,
+      device_class: unit === "bar" ? "pressure" : "temperature",
+    });
+  const original = hass.connection.sendMessagePromise;
+  const history = vi.fn(async (m: Record<string, unknown>) => {
+    if (fail) throw fail;
+    const rows: Record<string, unknown[]> = {
+      "sensor.flow": [
+        { s: "30", lu: s(now - 20 * HOUR) },
+        { s: "unavailable", lu: s(now - 12 * HOUR) },
+        { s: "33", lu: s(now - 8 * HOUR) },
+      ],
+      "sensor.flow_target": [{ s: "29", lu: s(now - 20 * HOUR) }],
+      "sensor.outdoor": [{ s: "5", lu: s(now - 20 * HOUR) }],
+      "sensor.pressure": [{ s: "1.5", lu: s(now - 20 * HOUR) }],
+    };
+    return Object.fromEntries(
+      (m.entity_ids as string[]).map((id) => [id, rows[id] ?? []]),
+    );
+  });
+  hass.connection.sendMessagePromise = vi.fn(
+    async <T>(m: Record<string, unknown>) => {
+      if (m.type === "history/history_during_period")
+        return (await history(m)) as T;
+      const reply = await original<unknown[]>(m);
+      if (m.type === "config/entity_registry/list")
+        return [
+          ...reply,
+          ...extra.map(([id, unique]) => ({
+            entity_id: id,
+            unique_id: unique,
+            device_id: unique.includes("circuit") ? "circuit" : "general",
+            config_entry_id: "home",
+            platform: "mypyllant",
+          })),
+        ] as T;
+      return reply as T;
+    },
+  ) as HomeAssistant["connection"]["sendMessagePromise"];
+  return { hass, history };
+}
+const legend = (c: HTMLElement) =>
+  Array.from(c.shadowRoot!.querySelectorAll(".legend .item")).map((i) =>
+    i.textContent!.replace(/\s+/g, " ").trim(),
+  );
+async function opened(c: HeatpumpCard, role: string) {
+  (
+    c.shadowRoot!.querySelector(`[data-chip="${role}"]`) as HTMLButtonElement
+  ).click();
+  await vi.waitFor(() => expect(legend(c).length).toBeGreaterThan(0));
+  await c.updateComplete;
+}
+
+it("opens one history of flow, flow target, outdoor and pressure from any reading", async () => {
+  const now = Date.now();
+  const { hass, history } = withReadings(now);
+  const { c } = await card({}, hass);
+  await opened(c, "pressure");
+  const dialog = c.shadowRoot!.querySelector<HTMLDialogElement>("#history")!;
+  expect(dialog.open).toBe(true);
+  expect(history).toHaveBeenCalledTimes(1);
+  const message = history.mock.calls[0][0];
+  expect(message).toMatchObject({
+    type: "history/history_during_period",
+    entity_ids: [
+      "sensor.flow",
+      "sensor.flow_target",
+      "sensor.outdoor",
+      "sensor.pressure",
+    ],
+    minimal_response: true,
+    no_attributes: true,
+    significant_changes_only: false,
+  });
+  expect(Date.parse(String(message.start_time))).toBeCloseTo(
+    now - 24 * HOUR,
+    -4,
+  );
+  expect(legend(c)).toEqual([
+    "Flow 31.5 °C",
+    "Flow target 28.6 °C",
+    "Outdoors 13.7 °C",
+    "Pressure 1.4 bar",
+  ]);
+  expect(c.shadowRoot!.querySelectorAll(".chart .line")).toHaveLength(4);
+  // Pressure has its own right-hand scale in bar.
+  expect(
+    Array.from(c.shadowRoot!.querySelectorAll(".chart .axis")).some((t) =>
+      t.textContent!.includes("bar"),
+    ),
+  ).toBe(true);
+  // The unavailable spell splits the flow line in two.
+  expect(
+    c
+      .shadowRoot!.querySelector(".chart .s-flow")!
+      .getAttribute("d")!
+      .match(/M/g),
+  ).toHaveLength(2);
+  dialog.close();
+  await opened(c, "outdoor");
+  expect(dialog.open).toBe(true);
+});
+
+it("reads the values under the pointer, changes range and opens a reading's details", async () => {
+  const now = Date.now();
+  const { hass, history } = withReadings(now);
+  const { c } = await card({}, hass);
+  await opened(c, "flow");
+  const svg = c.shadowRoot!.querySelector<SVGSVGElement>(".chart")!;
+  const box = svg.getBoundingClientRect();
+  const width = svg.viewBox.baseVal.width;
+  // The plot spans x 40 to width − 44; a third in is 16 hours ago.
+  c.shadowRoot!.querySelector(".history-plot")!.dispatchEvent(
+    new PointerEvent("pointermove", {
+      clientX: box.left + ((40 + (width - 84) / 3) / width) * box.width,
+    }),
+  );
+  await c.updateComplete;
+  expect(legend(c)).toEqual([
+    "Flow 30 °C",
+    "Flow target 29 °C",
+    "Outdoors 5 °C",
+    "Pressure 1.5 bar",
+  ]);
+  (
+    c.shadowRoot!.querySelector('[data-range="168"]') as HTMLButtonElement
+  ).click();
+  await vi.waitFor(() => expect(history).toHaveBeenCalledTimes(2));
+  expect(Date.parse(String(history.mock.calls[1][0].start_time))).toBeCloseTo(
+    now - 168 * HOUR,
+    -4,
+  );
+  const info: string[] = [];
+  c.addEventListener("hass-more-info", (e) =>
+    info.push((e as CustomEvent).detail.entityId),
+  );
+  await vi.waitFor(() => expect(legend(c).length).toBe(4));
+  (
+    c.shadowRoot!.querySelector('[data-series="pressure"]') as HTMLButtonElement
+  ).click();
+  expect(info).toEqual(["sensor.pressure"]);
+  expect(c.shadowRoot!.querySelector<HTMLDialogElement>("#history")!.open).toBe(
+    false,
+  );
+});
+
+it("explains a failed history request in Bokmål", async () => {
+  const { hass } = withReadings(Date.now(), new Error("Recorder is off"));
+  hass.language = "nb";
+  const { c } = await card({}, hass);
+  (
+    c.shadowRoot!.querySelector('[data-chip="flow"]') as HTMLButtonElement
+  ).click();
+  await vi.waitFor(() =>
+    expect(
+      c.shadowRoot!.querySelector("#history [role=alert]")?.textContent?.trim(),
+    ).toBe("Kunne ikke hente historikk: Recorder is off"),
+  );
+  expect(
+    Array.from(c.shadowRoot!.querySelectorAll("[data-range]")).map((b) =>
+      b.textContent!.trim(),
+    ),
+  ).toEqual(["6 t", "24 t", "7 d"]);
+  expect(c.shadowRoot!.querySelector("#history-title")!.textContent).toBe(
+    "Varmepumpehistorikk",
+  );
+});

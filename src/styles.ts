@@ -113,6 +113,172 @@ export const styles = css`
     border-radius: 12px;
     font-size: 0.8rem;
   }
+  button.chip {
+    font: inherit;
+    font-size: 0.8rem;
+    color: inherit;
+    background: none;
+    cursor: pointer;
+    min-height: 32px;
+  }
+  button.chip:hover {
+    background: var(--secondary-background-color, #eff3ef);
+  }
+  /* History: the readings on one chart, temperatures left, pressure right. */
+  .s-flow {
+    --series: var(--hp-warm);
+  }
+  .s-flowTarget {
+    --series: color-mix(
+      in srgb,
+      var(--hp-warm) 60%,
+      var(--primary-text-color, #243a39)
+    );
+  }
+  .s-outdoor {
+    --series: var(--hp-water);
+  }
+  .s-pressure {
+    --series: var(--hp-green);
+  }
+  dialog#history {
+    color: var(--primary-text-color, #243a39);
+    background: var(--ha-card-background, var(--card-background-color, #fff));
+    border: 0;
+    border-radius: var(--ha-card-border-radius, 20px);
+    padding: 16px 16px 20px;
+    width: min(640px, calc(100vw - 24px));
+    max-height: 90dvh;
+    overflow: auto;
+    box-shadow: 0 16px 60px #0006;
+  }
+  dialog#history.bubble {
+    background: var(
+      --bubble-main-background-color,
+      var(--ha-card-background, var(--card-background-color, #fff))
+    );
+    border-radius: min(var(--bubble-border-radius, 32px), 28px);
+  }
+  dialog#history::backdrop {
+    background: #0007;
+  }
+  .history-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .history-head h3 {
+    flex: 1;
+    margin: 0 4px;
+  }
+  dialog#history button {
+    font: inherit;
+    color: inherit;
+    border: 0;
+    cursor: pointer;
+  }
+  dialog#history .close {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 24px;
+    line-height: 1;
+    background: var(--secondary-background-color, #eff3ef);
+  }
+  .ranges {
+    display: flex;
+    gap: 6px;
+    margin: 10px 0 6px;
+  }
+  dialog#history .ranges button {
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 18px;
+    background: var(--secondary-background-color, #eff3ef);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  dialog#history .ranges button[aria-pressed="true"] {
+    background: color-mix(
+      in srgb,
+      var(--hp-green) 24%,
+      var(--secondary-background-color, #eff3ef)
+    );
+  }
+  .history-plot {
+    min-height: 120px;
+    touch-action: pan-y;
+  }
+  .chart {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .chart .grid {
+    stroke: color-mix(
+      in srgb,
+      var(--secondary-text-color, #627370) 22%,
+      transparent
+    );
+  }
+  .chart .axis {
+    fill: var(--secondary-text-color, #627370);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .chart .line {
+    fill: none;
+    stroke: var(--series);
+    stroke-width: 2;
+    stroke-linejoin: round;
+  }
+  .chart .s-flowTarget {
+    stroke-dasharray: 5 4;
+  }
+  .chart .cursor {
+    stroke: var(--secondary-text-color, #627370);
+    stroke-dasharray: 3 3;
+  }
+  .history-plot .hint {
+    margin: 40px 0;
+    text-align: center;
+  }
+  .when {
+    margin: 4px 4px 6px;
+    font-size: 0.75rem;
+    color: var(--secondary-text-color, #627370);
+  }
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: 6px;
+  }
+  dialog#history .legend .item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 2px 8px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border-radius: 14px;
+    background: var(--secondary-background-color, #eff3ef);
+    text-align: start;
+  }
+  .legend .swatch {
+    grid-row: span 2;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--series);
+  }
+  .legend .label {
+    font-size: 0.75rem;
+    color: var(--secondary-text-color, #627370);
+  }
+  .legend strong {
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+  }
   .big {
     font-size: 2.25rem;
     font-weight: 550;

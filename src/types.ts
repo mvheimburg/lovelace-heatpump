@@ -40,7 +40,7 @@ export interface HomeAssistant {
   states: Record<string, HassEntity>;
   connection: Connection;
   language?: string;
-  locale?: { language?: string };
+  locale?: { language?: string; time_format?: string };
   config?: { unit_system?: { temperature?: string } };
   callService(
     domain: string,

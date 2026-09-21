@@ -17,6 +17,14 @@ import { actionPayload, coolingPayload, perform, type Action } from "./actions";
 import { modeLabel, language, localize, type TextKey } from "./localize";
 import { efficiencyGroup } from "./efficiency";
 import { styles } from "./styles";
+import { chart, timeAt } from "./chart";
+import {
+  RANGES,
+  loadHistory,
+  valueAt,
+  type Range,
+  type Series,
+} from "./history";
 import "./editor";
 export class HeatpumpCard extends LitElement {
   static styles = styles;
@@ -39,6 +47,16 @@ export class HeatpumpCard extends LitElement {
   private feedback = "";
   private failed = false;
   private vetoHours = 2;
+  /** History dialog: chosen range, loaded series and the hovered time. */
+  private range: Range = 24;
+  private series?: Series[];
+  private window?: [number, number];
+  private historyLoading = false;
+  private historyError = "";
+  private hover?: number;
+  private historyTicket = 0;
+  private plotWidth = 600;
+  private resize?: ResizeObserver;
   get hass(): HomeAssistant | undefined {
     return this.ha;
   }
@@ -70,6 +88,11 @@ export class HeatpumpCard extends LitElement {
     this.pending = false;
     this.feedback = "";
     this.vetoHours = 2;
+    this.historyTicket++;
+    this.series = this.window = this.hover = undefined;
+    this.historyLoading = false;
+    this.historyError = "";
+    this.shadowRoot?.querySelector<HTMLDialogElement>("#history")?.close();
     this.resolve();
     this.requestUpdate();
   }
@@ -80,6 +103,22 @@ export class HeatpumpCard extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this.stop();
+    this.resize?.disconnect();
+    this.resize = undefined;
+  }
+  protected updated(): void {
+    const plot = this.shadowRoot?.querySelector(".history-plot");
+    if (!plot || this.resize) return;
+    this.resize = new ResizeObserver(([entry]) => {
+      const width = Math.round(entry.contentRect.width);
+      // Redraw next frame, outside the observer's own layout pass.
+      if (width > 0 && Math.abs(width - this.plotWidth) > 4)
+        requestAnimationFrame(() => {
+          this.plotWidth = width;
+          this.requestUpdate();
+        });
+    });
+    this.resize.observe(plot);
   }
   private start(): void {
     if (!this.ha || this.unwatch) return;
@@ -335,16 +374,207 @@ export class HeatpumpCard extends LitElement {
       ${known ? nothing : html`<span class="stale">${this.t(entity ? "unavailable" : "coolingMissing")}</span>`}
     </div>`;
   }
+  /** The readings drawn together in the history. */
+  private static readonly HISTORY: Role[] = [
+    "flow",
+    "flowTarget",
+    "outdoor",
+    "pressure",
+  ];
+  private static readonly LABELS: Partial<Record<Role, TextKey>> = {
+    flow: "flow",
+    flowTarget: "flowTarget",
+    outdoor: "outdoor",
+    pressure: "pressure",
+  };
   private chip(role: Role, label: TextKey) {
     if (!this.found.roles[role]) return nothing;
     const e = this.reading(role).entity;
-    return html`<span class="chip"
-      >${this.t(label)}
+    return html`<button
+      class="chip"
+      data-chip=${role}
+      aria-label=${`${this.t(label)}: ${this.t("history")}`}
+      @click=${() => void this.openHistory()}
+    >
+      ${this.t(label)}
       <strong
         >${this.number(e?.state)}
         ${e?.attributes.unit_of_measurement ?? ""}</strong
-      >${this.stamp(role)}</span
-    >`;
+      >${this.stamp(role)}
+    </button>`;
+  }
+  private async openHistory(): Promise<void> {
+    await this.updateComplete;
+    const dialog =
+      this.shadowRoot?.querySelector<HTMLDialogElement>("#history");
+    if (dialog && !dialog.open) dialog.showModal();
+    void this.loadHistory();
+  }
+  private async loadHistory(range: Range = this.range): Promise<void> {
+    if (!this.ha) return;
+    const ticket = ++this.historyTicket;
+    this.range = range;
+    this.historyLoading = true;
+    this.historyError = "";
+    this.hover = undefined;
+    this.requestUpdate();
+    const end = Date.now();
+    const sources = HeatpumpCard.HISTORY.flatMap((role) => {
+      const id = this.found.roles[role]?.entity_id;
+      return id ? [{ role, entityId: id }] : [];
+    });
+    try {
+      const series = await loadHistory(
+        this.ha.connection,
+        sources,
+        this.ha.states,
+        range,
+        end,
+      );
+      if (ticket !== this.historyTicket) return;
+      this.series = series;
+      this.window = [end - range * 3_600_000, end];
+    } catch (error) {
+      if (ticket !== this.historyTicket) return;
+      this.series = this.window = undefined;
+      this.historyError = `${this.t("historyFailed")}: ${
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error && "message" in error
+            ? String(error.message)
+            : String(error)
+      }`;
+    }
+    this.historyLoading = false;
+    this.requestUpdate();
+  }
+  private historyDialog() {
+    const locale = language(this.ha);
+    const hour12 =
+      this.ha?.locale?.time_format === "12"
+        ? true
+        : this.ha?.locale?.time_format === "24"
+          ? false
+          : undefined;
+    const time = (ms: number, withDay: boolean) =>
+      new Intl.DateTimeFormat(
+        locale,
+        withDay
+          ? { weekday: "short", day: "numeric" }
+          : { hour: "2-digit", minute: "2-digit", hour12 },
+      ).format(ms);
+    const span = (hours: number) =>
+      new Intl.NumberFormat(locale, {
+        style: "unit",
+        unit: hours < 48 ? "hour" : "day",
+        unitDisplay: "short",
+      }).format(hours < 48 ? hours : hours / 24);
+    const format = (value: number, digits: number) =>
+      new Intl.NumberFormat(locale, {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      }).format(value);
+    const series = this.series;
+    const window = this.window;
+    const at = this.hover;
+    const close = () =>
+      this.shadowRoot?.querySelector<HTMLDialogElement>("#history")?.close();
+    return html`<dialog
+      id="history"
+      class=${this.config?.appearance === "bubble" ? "bubble" : ""}
+      aria-labelledby="history-title"
+      @close=${() => {
+        this.historyTicket++;
+        this.hover = undefined;
+      }}
+    >
+      <div class="history-head">
+        <h3 id="history-title">${this.t("historyTitle")}</h3>
+        <button
+          class="close"
+          data-close
+          aria-label=${this.t("close")}
+          title=${this.t("close")}
+          @click=${close}
+        >
+          ×
+        </button>
+      </div>
+      <div class="ranges" role="group" aria-label=${this.t("history")}>
+        ${RANGES.map(
+          (hours) =>
+            html`<button
+              data-range=${hours}
+              aria-pressed=${String(this.range === hours)}
+              @click=${() => void this.loadHistory(hours)}
+            >
+              ${span(hours)}
+            </button>`,
+        )}
+      </div>
+      <div
+        class="history-plot"
+        aria-busy=${String(this.historyLoading)}
+        @pointermove=${(e: PointerEvent) => {
+          const svg = (e.currentTarget as HTMLElement).querySelector("svg");
+          if (!svg || !window) return;
+          this.hover = timeAt(e, svg, window[0], window[1]);
+          this.requestUpdate();
+        }}
+        @pointerleave=${() => {
+          this.hover = undefined;
+          this.requestUpdate();
+        }}
+      >
+        ${
+          this.historyError
+            ? html`<p class="feedback error" role="alert">
+                ${this.historyError}
+              </p>`
+            : !series || !window
+              ? html`<p class="hint" role="status">${this.t("loading")}</p>`
+              : series.every((s) => s.points.every(([, v]) => v === undefined))
+                ? html`<p class="hint">${this.t("noHistory")}</p>`
+                : chart(
+                    series,
+                    window[0],
+                    window[1],
+                    at,
+                    {
+                      number: format,
+                      time,
+                      label: this.t("historyTitle"),
+                    },
+                    Math.max(280, this.plotWidth),
+                  )
+        }
+      </div>
+      <p class="when" aria-live="polite">
+        ${at === undefined ? this.t("now") : time(at, false)}
+      </p>
+      <div class="legend">
+        ${(series ?? []).map((s) => {
+          const value =
+            at === undefined
+              ? s.points[s.points.length - 1]?.[1]
+              : valueAt(s, at);
+          return html`<button
+            class=${`item s-${s.role}`}
+            data-series=${s.role}
+            @click=${() => {
+              close();
+              this.info(s.role);
+            }}
+          >
+            <span class="swatch"></span>
+            <span class="label">${this.t(HeatpumpCard.LABELS[s.role]!)}</span>
+            <strong
+              >${value === undefined ? "—" : `${this.number(value)} ${s.unit}`}</strong
+            >
+          </button>`;
+        })}
+      </div>
+    </dialog>`;
   }
   private comfort() {
     const e = this.reading("climate").entity;
@@ -552,44 +782,44 @@ export class HeatpumpCard extends LitElement {
     if (!this.config) return nothing;
     const fault = this.reading("trouble").entity;
     return html`<ha-card
-      class=${this.config.appearance === "bubble" ? "bubble" : ""}
-      ><header>
-        <span class="symbol"
-          ><ha-icon icon="mdi:heat-pump-outline"></ha-icon
-        ></span>
-        <div class="header-name">
-          <div class="eyebrow muted">myVAILLANT</div>
-          <h2>${this.config.name ?? this.t("title")}</h2>
-        </div>
-      </header>
-      ${
-        fault?.state === "on"
-          ? html`<div class="takeover" role="alert">
-              <h3>${this.t("fault")}</h3>
-              <pre>
+        class=${this.config.appearance === "bubble" ? "bubble" : ""}
+        ><header>
+          <span class="symbol"
+            ><ha-icon icon="mdi:heat-pump-outline"></ha-icon
+          ></span>
+          <div class="header-name">
+            <div class="eyebrow muted">myVAILLANT</div>
+            <h2>${this.config.name ?? this.t("title")}</h2>
+          </div>
+        </header>
+        ${
+          fault?.state === "on"
+            ? html`<div class="takeover" role="alert">
+                <h3>${this.t("fault")}</h3>
+                <pre>
 ${JSON.stringify(fault.attributes.diagnostic_trouble_codes ?? [], null, 2)}</pre>
-              ${this.stamp("trouble")}<button
-                @click=${() => this.info("trouble")}
-              >
-                ${this.t("details")}
-              </button>
-            </div>`
-          : this.found.roles.trouble
-            ? this.stamp("trouble")
-            : nothing
-      }
-      ${this.registry.error || this.registry.disconnected ? html`<p class="feedback error" role="alert">${this.registry.disconnected ? this.t("disconnected") : html`${this.t("registryError")}: ${this.registry.error}`} <button @click=${this.retry}>${this.t("retry")}</button></p>` : nothing}
-      ${
-        !this.registry.registry
-          ? html`<p role="status">${this.t("loading")}</p>`
-          : this.found.error
-            ? html`<p role="alert">${this.t(this.found.error as TextKey)}</p>`
-            : html` ${this.found.ambiguous.length ? html`<p class="hint warning">${this.t("ambiguous")}: ${this.found.ambiguous.join(", ")}</p>` : nothing}
-              ${this.feedback ? html`<p class=${`feedback ${this.failed ? "error" : ""}`} role=${this.failed ? "alert" : "status"}>${this.feedback}</p>` : nothing}
-              ${this.show("comfort") ? this.comfort() : nothing}${this.show("water") ? this.water() : nothing}${this.show("efficiency") ? this.efficiency() : nothing}
-              ${!Object.keys(this.found.roles).length ? html`<p class="hint">${this.t("noRoles")}</p>` : nothing}`
-      }</ha-card
-    >`;
+                ${this.stamp("trouble")}<button
+                  @click=${() => this.info("trouble")}
+                >
+                  ${this.t("details")}
+                </button>
+              </div>`
+            : this.found.roles.trouble
+              ? this.stamp("trouble")
+              : nothing
+        }
+        ${this.registry.error || this.registry.disconnected ? html`<p class="feedback error" role="alert">${this.registry.disconnected ? this.t("disconnected") : html`${this.t("registryError")}: ${this.registry.error}`} <button @click=${this.retry}>${this.t("retry")}</button></p>` : nothing}
+        ${
+          !this.registry.registry
+            ? html`<p role="status">${this.t("loading")}</p>`
+            : this.found.error
+              ? html`<p role="alert">${this.t(this.found.error as TextKey)}</p>`
+              : html` ${this.found.ambiguous.length ? html`<p class="hint warning">${this.t("ambiguous")}: ${this.found.ambiguous.join(", ")}</p>` : nothing}
+                ${this.feedback ? html`<p class=${`feedback ${this.failed ? "error" : ""}`} role=${this.failed ? "alert" : "status"}>${this.feedback}</p>` : nothing}
+                ${this.show("comfort") ? this.comfort() : nothing}${this.show("water") ? this.water() : nothing}${this.show("efficiency") ? this.efficiency() : nothing}
+                ${!Object.keys(this.found.roles).length ? html`<p class="hint">${this.t("noRoles")}</p>` : nothing}`
+        }</ha-card
+      >${this.historyDialog()}`;
   }
   getCardSize(): number {
     return this.config?.mode === "all" ? 12 : 5;
