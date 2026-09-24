@@ -50,7 +50,7 @@ cop_window: 30d
 
 Comfort shows current room temperature, target, available HVAC modes, flow readings, outdoor temperature and pressure. Expand **Warmer for a while** to start a myPyllant quick veto using the displayed target and chosen duration (1–12 hours). The integration's duration number appears while a veto is active; setting it to zero cancels it. Controls respect reported ranges, steps and availability.
 
-Tap any of the readings (flow, flow target, outdoor, pressure) to open their **history together** in one chart: temperatures on the left-hand scale, water pressure on the right in its own unit, flow target dashed. Choose 6 hours, 24 hours (the default) or 7 days. Move the pointer or a finger across the chart to read every value at that moment; otherwise the legend shows the current values, and tapping a legend entry opens that sensor in Home Assistant. Unavailable spells are left as gaps. The data comes from Home Assistant's recorder (0.4.0).
+Tap any of the readings (flow, flow target, outdoor, pressure) to open their **history together** in one chart: temperatures on the left-hand scale, water pressure on the right in its own unit, flow target dashed. Choose 6 hours, 24 hours (the default) or 7 days. Move the pointer or a finger across the chart to read every value at that moment; otherwise the legend shows the current values, and tapping a legend entry opens that sensor in Home Assistant. Unavailable spells are left as gaps. The data comes from Home Assistant's recorder (0.4.0). History controls and ordinary reading charts use the bundled `lovelace-card-history` library (0.6.0); no extra dashboard resource is required. Failed requests offer **Try again**, and closing the dialog returns keyboard focus to the reading that opened it. Daily COP keeps its dedicated calculation and chart.
 
 ![Flow, flow target, outdoor temperature and water pressure in one history chart](docs/heatpump-history.png)
 
@@ -164,3 +164,6 @@ their current appearance. Scheme names and the editor label support English and
 Norwegian Bokmål; YAML values remain unchanged in either language. Static
 card-picker metadata remains English because it has no Home Assistant language
 context.
+
+
+History preview images use generic simulated data. Regenerate the light and mobile dark previews with `node scripts/screenshot.cjs`. The shared history dependency is bundled from the checked-in `vendor/` archive, so installation and builds do not require an unpublished Git tag.

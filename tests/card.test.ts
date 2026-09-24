@@ -461,9 +461,9 @@ function withReadings(now: number, fail?: Error) {
   return { hass, history };
 }
 const legend = (c: HTMLElement) =>
-  Array.from(c.shadowRoot!.querySelectorAll(".legend .item")).map((i) =>
-    i.textContent!.replace(/\s+/g, " ").trim(),
-  );
+  Array.from(
+    c.shadowRoot!.querySelectorAll(".history-legend .history-item"),
+  ).map((i) => i.textContent!.replace(/\s+/g, " ").trim());
 async function opened(c: HeatpumpCard, role: string) {
   (
     c.shadowRoot!.querySelector(`[data-chip="${role}"]`) as HTMLButtonElement
@@ -503,23 +503,25 @@ it("opens one history of flow, flow target, outdoor and pressure from any readin
     "Outdoors 13.7 °C",
     "Pressure 1.4 bar",
   ]);
-  expect(c.shadowRoot!.querySelectorAll(".chart .line")).toHaveLength(4);
+  expect(c.shadowRoot!.querySelectorAll(".history-chart .line")).toHaveLength(
+    4,
+  );
   // Pressure has its own right-hand scale in bar.
   expect(
-    Array.from(c.shadowRoot!.querySelectorAll(".chart .axis")).some((t) =>
-      t.textContent!.includes("bar"),
+    Array.from(c.shadowRoot!.querySelectorAll(".history-chart .axis")).some(
+      (t) => t.textContent!.includes("bar"),
     ),
   ).toBe(true);
   // The flow target is a setpoint: it holds, then steps to the current value.
   expect(
     c
-      .shadowRoot!.querySelector(".chart .s-flowTarget")!
+      .shadowRoot!.querySelector(".history-chart .line.series-1")!
       .getAttribute("d")!
-      .match(/L/g),
+      .match(/[HV]/g),
   ).toHaveLength(2);
   // Tick labels carry the decimals their spacing needs, and no more.
   const pressureTicks = Array.from(
-    c.shadowRoot!.querySelectorAll(".chart .axis"),
+    c.shadowRoot!.querySelectorAll(".history-chart .axis"),
   )
     .map((t) => t.textContent!.trim())
     .filter((t) => /^1\.\d+$/.test(t));
@@ -528,7 +530,7 @@ it("opens one history of flow, flow target, outdoor and pressure from any readin
   // The unavailable spell splits the flow line in two.
   expect(
     c
-      .shadowRoot!.querySelector(".chart .s-flow")!
+      .shadowRoot!.querySelector(".history-chart .line.series-0")!
       .getAttribute("d")!
       .match(/M/g),
   ).toHaveLength(2);
@@ -542,13 +544,13 @@ it("reads the values under the pointer, changes range and opens a reading's deta
   const { hass, history } = withReadings(now);
   const { c } = await card({}, hass);
   await opened(c, "flow");
-  const svg = c.shadowRoot!.querySelector<SVGSVGElement>(".chart")!;
+  const svg = c.shadowRoot!.querySelector<SVGSVGElement>(".history-chart")!;
   const box = svg.getBoundingClientRect();
   const width = svg.viewBox.baseVal.width;
   // The plot spans x 40 to width − 44; a third in is 16 hours ago.
   c.shadowRoot!.querySelector(".history-plot")!.dispatchEvent(
     new PointerEvent("pointermove", {
-      clientX: box.left + ((40 + (width - 84) / 3) / width) * box.width,
+      clientX: box.left + ((44 + (width - 88) / 3) / width) * box.width,
     }),
   );
   await c.updateComplete;
@@ -572,7 +574,9 @@ it("reads the values under the pointer, changes range and opens a reading's deta
   );
   await vi.waitFor(() => expect(legend(c).length).toBe(4));
   (
-    c.shadowRoot!.querySelector('[data-series="pressure"]') as HTMLButtonElement
+    c.shadowRoot!.querySelector(
+      '[data-series="sensor.pressure"]',
+    ) as HTMLButtonElement
   ).click();
   expect(info).toEqual(["sensor.pressure"]);
   expect(c.shadowRoot!.querySelector<HTMLDialogElement>("#history")!.open).toBe(
@@ -589,7 +593,10 @@ it("explains a failed history request in Bokmål", async () => {
   ).click();
   await vi.waitFor(() =>
     expect(
-      c.shadowRoot!.querySelector("#history [role=alert]")?.textContent?.trim(),
+      c
+        .shadowRoot!.querySelector("#history [role=alert]")
+        ?.querySelector("span")
+        ?.textContent?.trim(),
     ).toBe("Kunne ikke hente historikk: Recorder is off"),
   );
   expect(
@@ -597,9 +604,9 @@ it("explains a failed history request in Bokmål", async () => {
       b.textContent!.trim(),
     ),
   ).toEqual(["6 t", "24 t", "7 d"]);
-  expect(c.shadowRoot!.querySelector("#history-title")!.textContent).toBe(
-    "Varmepumpehistorikk",
-  );
+  expect(
+    c.shadowRoot!.querySelector("#history-title")!.textContent!.trim(),
+  ).toBe("Varmepumpehistorikk");
 });
 
 it("opens the tank and its target from the water heater, with the target as a step", async () => {
@@ -649,10 +656,10 @@ it("opens the tank and its target from the water heater, with the target as a st
     "Hot water target 55 °C",
   ]);
   const target = c
-    .shadowRoot!.querySelector(".chart .s-waterTarget")!
+    .shadowRoot!.querySelector(".history-chart .line.series-1")!
     .getAttribute("d")!;
   // Stepped: two segments per change after the first reading.
-  expect(target.match(/L/g)).toHaveLength(4);
+  expect(target.match(/[HV]/g)).toHaveLength(4);
   expect(
     Array.from(c.shadowRoot!.querySelectorAll("[data-range]")).map((b) =>
       b.getAttribute("data-range"),
@@ -731,4 +738,69 @@ it("opens COP per day from a measured COP, over days", async () => {
       b.textContent!.trim(),
     ),
   ).toEqual(["7 days", "30 days", "90 days"]);
+});
+
+it("retries a failed recorder request and returns focus to the tapped reading", async () => {
+  const { hass, history } = withReadings(
+    Date.now(),
+    new Error("Recorder is off"),
+  );
+  const { c } = await card({}, hass);
+  const trigger =
+    c.shadowRoot!.querySelector<HTMLButtonElement>('[data-chip="flow"]')!;
+  trigger.focus();
+  trigger.click();
+  await vi.waitFor(() =>
+    expect(c.shadowRoot!.querySelector("[data-retry]")).not.toBeNull(),
+  );
+  history.mockImplementation(async () => ({}));
+  c.shadowRoot!.querySelector<HTMLButtonElement>("[data-retry]")!.click();
+  await vi.waitFor(() => expect(history).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() =>
+    expect(c.shadowRoot!.querySelector("#history [role=alert]")).toBeNull(),
+  );
+  c.shadowRoot!.querySelector<HTMLDialogElement>("#history")!.close();
+  await vi.waitFor(() => expect(c.shadowRoot!.activeElement).toBe(trigger));
+});
+
+it("ignores a recorder reply after the card configuration changes", async () => {
+  const { hass, history } = withReadings(Date.now());
+  let finish!: (rows: Record<string, Array<{ s: string; lu: number }>>) => void;
+  history.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const { c } = await card({}, hass);
+  c.shadowRoot!.querySelector<HTMLButtonElement>('[data-chip="flow"]')!.click();
+  await vi.waitFor(() => expect(history).toHaveBeenCalledTimes(1));
+  c.setConfig({
+    type: "custom:heatpump-card",
+    entity: "climate.home",
+    mode: "water",
+  });
+  finish({ "sensor.flow": [{ s: "999", lu: Date.now() / 1000 }] });
+  await c.updateComplete;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(c.shadowRoot!.querySelector<HTMLDialogElement>("#history")!.open).toBe(
+    false,
+  );
+  expect(legend(c)).toEqual([]);
+});
+
+it("updates an open history when the HA language changes and tolerates malformed locales", async () => {
+  const { hass } = withReadings(Date.now());
+  hass.language = "en-GB";
+  const { c } = await card({}, hass);
+  await opened(c, "flow");
+  expect(legend(c)[0]).toBe("Flow 31.5 °C");
+  hass.language = "NB_no";
+  c.hass = { ...hass };
+  await c.updateComplete;
+  expect(legend(c)[0]).toBe("Turtemperatur 31,5 °C");
+  hass.language = "invalid_!";
+  c.hass = { ...hass };
+  await c.updateComplete;
+  expect(legend(c)[0]).toBe("Flow 31.5 °C");
 });

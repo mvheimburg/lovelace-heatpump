@@ -19,9 +19,21 @@ import { efficiencyGroup } from "./efficiency";
 import { styles } from "./styles";
 import { chart, timeAt } from "./chart";
 import {
+  HistoryController,
+  historyDialog,
+  historyFormat,
+  historyStrings,
+  historyStyles,
+  lineChart,
+  lineChartTimeAt,
+  openHistoryDialog,
+  units,
+} from "lovelace-card-history";
+import {
   DEFAULT_RANGE,
   RANGES,
   loadHistory,
+  sharedSeries,
   valueAt,
   type HistoryGroup,
   type Series,
@@ -30,7 +42,7 @@ import {
 import { loadCop } from "./cop";
 import "./editor";
 export class HeatpumpCard extends LitElement {
-  static styles = styles;
+  static styles = [styles, historyStyles];
   private config?: CardConfig;
   private ha?: HomeAssistant;
   private connection?: Connection;
@@ -52,15 +64,9 @@ export class HeatpumpCard extends LitElement {
   private vetoHours = 2;
   /** History dialog: chosen range, loaded series and the hovered time. */
   private group: HistoryGroup = "readings";
-  private range = DEFAULT_RANGE.readings;
-  private series?: Series[];
-  private window?: [number, number];
-  private historyLoading = false;
-  private historyError = "";
-  private hover?: number;
-  private historyTicket = 0;
-  private plotWidth = 600;
-  private resize?: ResizeObserver;
+  private history = new HistoryController<Series[]>(this, (range, end) =>
+    this.fetchHistory(range, end),
+  );
   get hass(): HomeAssistant | undefined {
     return this.ha;
   }
@@ -92,10 +98,7 @@ export class HeatpumpCard extends LitElement {
     this.pending = false;
     this.feedback = "";
     this.vetoHours = 2;
-    this.historyTicket++;
-    this.series = this.window = this.hover = undefined;
-    this.historyLoading = false;
-    this.historyError = "";
+    this.history.reset();
     this.shadowRoot?.querySelector<HTMLDialogElement>("#history")?.close();
     this.resolve();
     this.requestUpdate();
@@ -107,22 +110,12 @@ export class HeatpumpCard extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this.stop();
-    this.resize?.disconnect();
-    this.resize = undefined;
   }
   protected updated(): void {
-    const plot = this.shadowRoot?.querySelector(".history-plot");
-    if (!plot || this.resize) return;
-    this.resize = new ResizeObserver(([entry]) => {
-      const width = Math.round(entry.contentRect.width);
-      // Redraw next frame, outside the observer's own layout pass.
-      if (width > 0 && Math.abs(width - this.plotWidth) > 4)
-        requestAnimationFrame(() => {
-          this.plotWidth = width;
-          this.requestUpdate();
-        });
-    });
-    this.resize.observe(plot);
+    this.history.observe(this.shadowRoot?.querySelector(".history-plot"));
+    this.shadowRoot
+      ?.querySelector("#history")
+      ?.classList.toggle("bubble", this.config?.appearance === "bubble");
   }
   private start(): void {
     if (!this.ha || this.unwatch) return;
@@ -145,6 +138,7 @@ export class HeatpumpCard extends LitElement {
     }, 60_000);
   }
   private stop(): void {
+    this.history.reset();
     this.unwatch?.();
     this.unwatch = undefined;
     if (this.timer) clearInterval(this.timer);
@@ -420,17 +414,17 @@ export class HeatpumpCard extends LitElement {
   }
   private async openHistory(group: HistoryGroup): Promise<void> {
     if (group !== this.group) {
-      this.historyTicket++;
-      this.series = this.window = undefined;
       this.group = group;
-      this.range = DEFAULT_RANGE[group];
+      this.history.range = DEFAULT_RANGE[group];
     }
-    this.requestUpdate();
-    await this.updateComplete;
-    const dialog =
-      this.shadowRoot?.querySelector<HTMLDialogElement>("#history");
-    if (dialog && !dialog.open) dialog.showModal();
-    void this.loadHistory();
+    const trigger = this.shadowRoot?.activeElement as HTMLElement | null;
+    await openHistoryDialog(
+      this.history,
+      this.shadowRoot,
+      this,
+      this.t("historyFailed"),
+      trigger,
+    );
   }
   /** The tank and its target: separate sensors, else the water heater's own. */
   private waterSources(): Source[] {
@@ -459,205 +453,101 @@ export class HeatpumpCard extends LitElement {
         : undefined;
     return [tank, target].filter((s): s is Source => !!s);
   }
-  private async loadHistory(range = this.range): Promise<void> {
-    if (!this.ha) return;
-    const ticket = ++this.historyTicket;
-    const group = this.group;
-    this.range = range;
-    this.historyLoading = true;
-    this.historyError = "";
-    this.hover = undefined;
-    this.requestUpdate();
-    const end = Date.now();
+  private async fetchHistory(range: number, end: number): Promise<Series[]> {
+    if (!this.ha) return [];
+    const hass = this.ha;
     const roles = this.found.roles;
-    try {
-      let series: Series[];
-      if (group === "cop") {
-        const energy =
-          this.energy ??
-          (await loadEnergy(
-            this.ha.connection,
-            roles,
-            this.config?.cop_window ?? "7d",
-          ));
-        series = await loadCop(
-          this.ha.connection,
-          energy,
-          roles.outdoor?.entity_id,
-          range / 24,
-          {
-            heating: roles.heatingHeat?.entity_id,
-            water: roles.waterHeat?.entity_id,
-          },
-          end,
-        );
-      } else {
-        const sources: Source[] =
-          group === "water"
-            ? this.waterSources()
-            : HeatpumpCard.HISTORY.flatMap((role) => {
-                const id = roles[role]?.entity_id;
-                return id ? [{ role, entityId: id }] : [];
-              });
-        series = await loadHistory(
-          this.ha.connection,
-          sources,
-          this.ha.states,
-          range,
-          end,
-        );
-      }
-      if (ticket !== this.historyTicket) return;
-      this.series = series;
-      this.window = [end - range * 3_600_000, end];
-    } catch (error) {
-      if (ticket !== this.historyTicket) return;
-      this.series = this.window = undefined;
-      this.historyError = `${this.t("historyFailed")}: ${
-        error instanceof Error
-          ? error.message
-          : typeof error === "object" && error && "message" in error
-            ? String(error.message)
-            : String(error)
-      }`;
+    if (this.group === "cop") {
+      const energy =
+        this.energy ??
+        (await loadEnergy(
+          hass.connection,
+          roles,
+          this.config?.cop_window ?? "7d",
+        ));
+      return loadCop(
+        hass.connection,
+        energy,
+        roles.outdoor?.entity_id,
+        range / 24,
+        {
+          heating: roles.heatingHeat?.entity_id,
+          water: roles.waterHeat?.entity_id,
+        },
+        end,
+      );
     }
-    this.historyLoading = false;
-    this.requestUpdate();
+    const sources: Source[] =
+      this.group === "water"
+        ? this.waterSources()
+        : HeatpumpCard.HISTORY.flatMap((role) => {
+            const id = roles[role]?.entity_id;
+            return id ? [{ role, entityId: id }] : [];
+          });
+    return loadHistory(hass.connection, sources, hass.states, range, end);
   }
   private historyDialog() {
-    const locale = language(this.ha);
-    const hour12 =
-      this.ha?.locale?.time_format === "12"
-        ? true
-        : this.ha?.locale?.time_format === "24"
-          ? false
-          : undefined;
-    const time = (ms: number, withDay: boolean) =>
-      new Intl.DateTimeFormat(
-        locale,
-        withDay
-          ? { weekday: "short", day: "numeric" }
-          : { hour: "2-digit", minute: "2-digit", hour12 },
-      ).format(ms);
-    const span = (hours: number) =>
-      new Intl.NumberFormat(locale, {
-        style: "unit",
-        unit: hours < 48 ? "hour" : "day",
-        unitDisplay: "short",
-      }).format(hours < 48 ? hours : hours / 24);
-    const format = (value: number, digits: number) =>
-      new Intl.NumberFormat(locale, {
-        minimumFractionDigits: digits,
-        maximumFractionDigits: digits,
-      }).format(value);
-    const series = this.series;
-    const window = this.window;
-    const at = this.hover;
-    const close = () =>
-      this.shadowRoot?.querySelector<HTMLDialogElement>("#history")?.close();
-    return html`<dialog
-      id="history"
-      class=${this.config?.appearance === "bubble" ? "bubble" : ""}
-      aria-labelledby="history-title"
-      @close=${() => {
-        this.historyTicket++;
-        this.hover = undefined;
-      }}
-    >
-      <div class="history-head">
-        <h3 id="history-title">${this.t(HeatpumpCard.TITLES[this.group])}</h3>
-        <button
-          class="close"
-          data-close
-          aria-label=${this.t("close")}
-          title=${this.t("close")}
-          @click=${close}
-        >
-          ×
-        </button>
-      </div>
-      <div class="ranges" role="group" aria-label=${this.t("history")}>
-        ${RANGES[this.group].map(
-          (hours) =>
-            html`<button
-              data-range=${hours}
-              aria-pressed=${String(this.range === hours)}
-              @click=${() => void this.loadHistory(hours)}
-            >
-              ${span(hours)}
-            </button>`,
-        )}
-      </div>
-      <div
-        class="history-plot"
-        aria-busy=${String(this.historyLoading)}
-        @pointermove=${(e: PointerEvent) => {
-          const svg = (e.currentTarget as HTMLElement).querySelector("svg");
-          if (!svg || !window) return;
-          this.hover = timeAt(e, svg, window[0], window[1]);
-          this.requestUpdate();
-        }}
-        @pointerleave=${() => {
-          this.hover = undefined;
-          this.requestUpdate();
-        }}
-      >
-        ${
-          this.historyError
-            ? html`<p class="feedback error" role="alert">
-                ${this.historyError}
-              </p>`
-            : !series || !window
-              ? html`<p class="hint" role="status">${this.t("loading")}</p>`
-              : series.every((s) => s.points.every(([, v]) => v === undefined))
-                ? html`<p class="hint">${this.t("noHistory")}</p>`
-                : chart(
-                    series,
-                    window[0],
-                    window[1],
-                    at,
-                    {
-                      number: format,
-                      time,
-                      label: this.t(HeatpumpCard.TITLES[this.group]),
-                    },
-                    Math.max(280, this.plotWidth),
-                  )
-        }
-      </div>
-      ${this.group === "cop" ? html`<p class="hint">${this.t("copHint")}</p>` : nothing}
-      <p class="when" aria-live="polite">
-        ${at === undefined ? this.t("now") : time(at, this.group === "cop")}
-      </p>
-      <div class="legend">
-        ${(series ?? []).map((s) => {
+    const format = historyFormat(this.ha);
+    const title = this.t(HeatpumpCard.TITLES[this.group]);
+    return historyDialog(this.history, {
+      strings: { ...historyStrings(this.ha), history: title },
+      format,
+      ranges: RANGES[this.group],
+      footer:
+        this.group === "cop"
+          ? html`<p class="hint">${this.t("copHint")}</p>`
+          : undefined,
+      chart: (series, [start, end], hover, width) =>
+        this.group === "cop"
+          ? chart(
+              series,
+              start,
+              end,
+              hover,
+              { number: format.number, time: format.time, label: title },
+              width,
+            )
+          : lineChart(
+              sharedSeries(series),
+              start,
+              end,
+              hover,
+              { number: format.number, time: format.time, label: title },
+              { width, fill: false },
+            ),
+      isEmpty: (series) =>
+        series.every((s) => s.points.every(([, value]) => value === undefined)),
+      timeAt: (event, svg, [start, end], series) =>
+        this.group === "cop"
+          ? timeAt(event, svg, start, end)
+          : lineChartTimeAt(
+              event,
+              svg,
+              start,
+              end,
+              units(sharedSeries(series))[1] !== undefined,
+            ),
+      legend: (series, at) =>
+        sharedSeries(series).map((s) => {
           const value =
             at === undefined
               ? s.points[s.points.length - 1]?.[1]
               : valueAt(s, at);
-          return html`<button
-            class=${`item s-${s.role}`}
-            data-series=${s.role}
-            @click=${() => {
-              close();
-              this.moreInfo(s.entityId);
-            }}
-          >
-            <span class="swatch"></span>
-            <span class="label">${this.t(HeatpumpCard.LABELS[s.role])}</span>
-            <strong
-              >${
-                value === undefined
-                  ? "—"
-                  : s.unit === "COP"
-                    ? format(value, 2)
-                    : `${this.number(value)} ${s.unit}`
-              }</strong
-            >
-          </button>`;
-        })}
-      </div>
-    </dialog>`;
+          return {
+            entityId: s.entityId,
+            name: this.t(HeatpumpCard.LABELS[s.tag!]),
+            value:
+              value === undefined
+                ? "—"
+                : s.unit === "COP"
+                  ? format.number(value, 2)
+                  : format.reading(value, s.unit),
+            color: s.color,
+            kind: s.kind,
+          };
+        }),
+      select: (entityId) => this.moreInfo(entityId),
+    });
   }
   private comfort() {
     const e = this.reading("climate").entity;

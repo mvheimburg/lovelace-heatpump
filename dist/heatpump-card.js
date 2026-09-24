@@ -51,7 +51,7 @@ const colorSchemes = [
     "sky",
     "lavender",
 ];
-const en$1 = {
+const en$2 = {
     label: "Color scheme",
     "home-assistant": "Home Assistant",
     bright: "Bright",
@@ -61,7 +61,7 @@ const en$1 = {
     lavender: "Lavender",
     invalid: "Choose a valid color_scheme: home-assistant, bright, warm, mint, sky or lavender.",
 };
-const nb$1 = {
+const nb$2 = {
     label: "Fargevalg",
     "home-assistant": "Home Assistant",
     bright: "Lys",
@@ -76,7 +76,7 @@ function colorSchemeText(hass) {
         .toLowerCase()
         .replace(/_/g, "-")
         .split("-")[0];
-    return ["nb", "no", "nn"].includes(language) ? nb$1 : en$1;
+    return ["nb", "no", "nn"].includes(language) ? nb$2 : en$2;
 }
 function applyColorScheme(host, value, hass) {
     const scheme = value === undefined ? "home-assistant" : value;
@@ -680,7 +680,7 @@ function watchRegistry(c, cb) {
 function available(entity) {
     return !!entity && !["unavailable", "unknown", ""].includes(entity.state);
 }
-function numeric(value) {
+function numeric$1(value) {
     if (typeof value !== "number" && typeof value !== "string")
         return;
     if (typeof value === "string" && !value.trim())
@@ -739,11 +739,11 @@ function actionPayload(role, action, entity, config, value, duration, temperatur
         throw Error("unavailable");
     if (["curve", "minFlow"].includes(role) && !config.allow_curve_edit)
         throw Error("unavailable");
-    const number = numeric(value);
+    const number = numeric$1(value);
     const isNumber = action === "number";
-    const min = numeric(entity.attributes[isNumber ? "min" : "min_temp"]);
-    const max = numeric(entity.attributes[isNumber ? "max" : "max_temp"]);
-    const step = numeric(entity.attributes[isNumber ? "step" : "target_temp_step"]);
+    const min = numeric$1(entity.attributes[isNumber ? "min" : "min_temp"]);
+    const max = numeric$1(entity.attributes[isNumber ? "max" : "max_temp"]);
+    const step = numeric$1(entity.attributes[isNumber ? "step" : "target_temp_step"]);
     if (number === undefined ||
         (min !== undefined && number < min) ||
         (max !== undefined && number > max) ||
@@ -809,7 +809,7 @@ function language(hass) {
         return "en";
     }
 }
-const en = {
+const en$1 = {
     off: "Off",
     hvacHeat: "Heating",
     cool: "Cooling",
@@ -921,7 +921,7 @@ const en = {
     cooling_entity: "Heating/cooling switch (on = cooling)",
     coolingMissing: "Heating/cooling switch not found",
 };
-const nb = {
+const nb$1 = {
     off: "Av",
     hvacHeat: "Oppvarming",
     cool: "Kjøling",
@@ -1035,8 +1035,8 @@ const nb = {
 };
 function localize(language, key) {
     return /^(nb|nn|no)(-|$)/.test((language ?? "").replace(/_/g, "-").toLowerCase())
-        ? nb[key]
-        : en[key];
+        ? nb$1[key]
+        : en$1[key];
 }
 function modeLabel(locale, mode) {
     if (mode === "heat")
@@ -1344,53 +1344,6 @@ const styles = i$4 `
   dialog#history::backdrop {
     background: #0007;
   }
-  .history-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .history-head h3 {
-    flex: 1;
-    margin: 0 4px;
-  }
-  dialog#history button {
-    font: inherit;
-    color: inherit;
-    border: 0;
-    cursor: pointer;
-  }
-  dialog#history .close {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    font-size: 24px;
-    line-height: 1;
-    background: var(--secondary-background-color, #eff3ef);
-  }
-  .ranges {
-    display: flex;
-    gap: 6px;
-    margin: 10px 0 6px;
-  }
-  dialog#history .ranges button {
-    min-height: 36px;
-    padding: 0 14px;
-    border-radius: 18px;
-    background: var(--secondary-background-color, #eff3ef);
-    font-size: 0.8rem;
-    font-weight: 600;
-  }
-  dialog#history .ranges button[aria-pressed="true"] {
-    background: color-mix(
-      in srgb,
-      var(--hp-green) 24%,
-      var(--secondary-background-color, #eff3ef)
-    );
-  }
-  .history-plot {
-    min-height: 120px;
-    touch-action: pan-y;
-  }
   .chart {
     display: block;
     width: 100%;
@@ -1422,45 +1375,12 @@ const styles = i$4 `
     stroke: var(--secondary-text-color, #627370);
     stroke-dasharray: 3 3;
   }
-  .history-plot .hint {
-    margin: 40px 0;
-    text-align: center;
-  }
-  .when {
-    margin: 4px 4px 6px;
-    font-size: 0.75rem;
-    color: var(--secondary-text-color, #627370);
-  }
-  .legend {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-    gap: 6px;
-  }
-  dialog#history .legend .item {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    gap: 2px 8px;
-    min-height: 44px;
-    padding: 8px 12px;
-    border-radius: 14px;
-    background: var(--secondary-background-color, #eff3ef);
-    text-align: start;
-  }
-  .legend .swatch {
-    grid-row: span 2;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--series);
-  }
-  .legend .label {
-    font-size: 0.75rem;
-    color: var(--secondary-text-color, #627370);
-  }
-  .legend strong {
-    font-size: 0.95rem;
-    font-variant-numeric: tabular-nums;
+  :host {
+    --history-accent: var(--hp-green);
+    --history-series-0: var(--hp-warm);
+    --history-series-1: var(--secondary-text-color, #627370);
+    --history-series-2: var(--hp-water);
+    --history-series-3: var(--hp-green);
   }
   .big {
     font-size: 2.25rem;
@@ -1822,59 +1742,147 @@ const styles = i$4 `
   ${colorSchemeStyles}
 `;
 
-const RANGES = {
-    readings: [6, 24, 168],
-    water: [6, 24, 168],
-    cop: [168, 720, 2160],
-};
-const DEFAULT_RANGE = {
-    readings: 24,
-    water: 24,
-    cop: 720,
-};
+/** Loading recorder history for charts and timelines. */
 /**
- * The history of each role's entity over the last `hours`, from Home
- * Assistant's recorder, ending with the current state.
+ * A connection for history requests: `hass.callWS` when Home Assistant offers
+ * it, else its websocket connection.
  */
-async function loadHistory(connection, sources, states, hours, now = Date.now()) {
+/** The ranges every history view offers, in hours. */
+const RANGES$1 = [6, 24, 168];
+const SILENT = new Set(["unavailable", "unknown", ""]);
+/** A reading as a number; `undefined` while unavailable or not a number. */
+function numeric(state) {
+    if (state === undefined || SILENT.has(state))
+        return undefined;
+    const value = Number(state);
+    return Number.isFinite(value) ? value : undefined;
+}
+/** States that mean on/open for a lane; anything else reported means off. */
+const ON = ["on", "open", "opening", "ajar", "unlocked", "true"];
+/** 1 while on/open, 0 while off, `undefined` while unreported. */
+function onOff(state) {
+    if (state === undefined || SILENT.has(state))
+        return undefined;
+    return ON.includes(state.toLowerCase()) ? 1 : 0;
+}
+const isTemperature = (unit) => ["°C", "°F", "K"].includes(unit);
+/** The unit of an entity's readings. */
+const unitOf = (state) => String(state?.attributes.unit_of_measurement ?? "");
+/**
+ * Raw history of `ids` since `start`, one request. With `attributes`, each row
+ * carries its attributes (needed to read one), which costs a larger reply.
+ */
+async function rawRows(connection, ids, start, attributes = false) {
+    if (!ids.length)
+        return {};
+    return ((await connection.sendMessagePromise({
+        type: "history/history_during_period",
+        start_time: new Date(start).toISOString(),
+        entity_ids: ids,
+        minimal_response: !attributes,
+        no_attributes: !attributes,
+        significant_changes_only: false,
+    })) ?? {});
+}
+/** Raw state history of `ids` since `start`, as marks. */
+async function rawHistory(connection, ids, start) {
+    const reply = await rawRows(connection, ids, start);
+    return Object.fromEntries(ids.map((id) => [
+        id,
+        (reply?.[id] ?? []).map((row) => [
+            Math.max(start, (row.lu ?? row.lc ?? 0) * 1000),
+            row.s,
+        ]),
+    ]));
+}
+/**
+ * Hourly means of `ids` since `start`. An hour without a statistic is a gap: the
+ * mark after the last row of a run says the sensor went quiet.
+ */
+async function hourlyMeans(connection, ids, start, end) {
+    if (!ids.length)
+        return {};
+    const reply = await connection.sendMessagePromise({
+        type: "recorder/statistics_during_period",
+        start_time: new Date(start).toISOString(),
+        end_time: new Date(end).toISOString(),
+        statistic_ids: ids,
+        period: "hour",
+        types: ["mean", "state"],
+    });
+    const HOUR = 3600000;
+    return Object.fromEntries(ids.map((id) => {
+        const marks = [];
+        let last;
+        for (const row of reply?.[id] ?? []) {
+            const t = typeof row.start === "number" ? row.start : Date.parse(row.start);
+            const value = row.mean ?? row.state;
+            if (!Number.isFinite(t) || value === null || value === undefined)
+                continue;
+            if (last !== undefined && t - last > HOUR * 1.5)
+                marks.push([last + HOUR, undefined]);
+            marks.push([Math.max(start, t), String(value)]);
+            last = t;
+        }
+        return [id, marks];
+    }));
+}
+/**
+ * The history of each source over the last `hours`, ending with the entity's
+ * current state. Lanes are loaded as on/off, lines and steps as numbers.
+ */
+async function loadSeries(connection, sources, states, hours, options = {}) {
+    const now = options.now ?? Date.now();
     const start = now - hours * 3600000;
-    // Attribute sources need attributes on every row; the others do not.
-    const ask = (list, attributes) => list.length
-        ? connection.sendMessagePromise({
-            type: "history/history_during_period",
-            start_time: new Date(start).toISOString(),
-            entity_ids: [...new Set(list.map((s) => s.entityId))],
-            minimal_response: !attributes,
-            no_attributes: !attributes,
-            significant_changes_only: false,
-        })
-        : Promise.resolve({});
-    const [withAttributes, plain] = await Promise.all([
-        ask(sources.filter((s) => s.attribute), true),
-        ask(sources.filter((s) => !s.attribute), false),
+    const statisticsFrom = options.statisticsFrom ?? 168;
+    const ids = [
+        ...new Set(sources.filter((s) => !s.attribute).map((s) => s.entityId)),
+    ];
+    const withAttributes = [
+        ...new Set(sources.filter((s) => s.attribute).map((s) => s.entityId)),
+    ];
+    const fromStatistics = new Set(statisticsFrom > 0 && hours >= statisticsFrom
+        ? sources
+            .filter((s) => s.kind !== "lane" &&
+            s.kind !== "step" &&
+            !s.attribute &&
+            states[s.entityId]?.attributes.state_class)
+            .map((s) => s.entityId)
+        : []);
+    const [raw, means, full] = await Promise.all([
+        rawHistory(connection, ids.filter((id) => !fromStatistics.has(id)), start),
+        hourlyMeans(connection, [...fromStatistics], start, now),
+        rawRows(connection, withAttributes, start, true),
     ]);
-    const read = (source, state, attributes) => ["unavailable", "unknown", ""].includes(state)
-        ? undefined
-        : numeric(source.attribute ? attributes?.[source.attribute] : state);
     return sources.map((source) => {
         const current = states[source.entityId];
-        const rows = (source.attribute ? withAttributes : plain)[source.entityId];
-        const points = (rows ?? []).map((row) => [
-            Math.max(start, (row.lu ?? row.lc ?? 0) * 1000),
-            read(source, row.s, row.a),
-        ]);
+        const read = (state, a) => source.attribute
+            ? SILENT.has(state ?? "") || a?.[source.attribute] == null
+                ? undefined
+                : String(a[source.attribute])
+            : state;
+        // Full rows repeat the last attributes: a row may omit unchanged ones.
+        let attrs;
+        const marks = source.attribute
+            ? (full[source.entityId] ?? []).map((row) => {
+                attrs = row.a ?? attrs;
+                return [
+                    Math.max(start, (row.lu ?? row.lc ?? 0) * 1000),
+                    read(row.s, attrs),
+                ];
+            })
+            : [...(raw[source.entityId] ?? means[source.entityId] ?? [])];
         if (current)
-            points.push([
-                now,
-                available(current)
-                    ? read(source, current.state, current.attributes)
-                    : undefined,
-            ]);
+            marks.push([now, read(current.state, current.attributes)]);
+        const lane = source.kind === "lane";
         return {
-            role: source.role,
-            entityId: source.entityId,
-            unit: source.unit ?? String(current?.attributes.unit_of_measurement ?? ""),
-            points,
+            ...source,
+            unit: source.unit ?? (lane ? "" : unitOf(current)),
+            points: marks.map(([t, s]) => [t, lane ? onOff(s) : numeric(s)]),
+            states: marks.map(([t, s]) => [
+                t,
+                s === undefined || SILENT.has(s) ? undefined : s,
+            ]),
         };
     });
 }
@@ -1888,6 +1896,7 @@ function valueAt(series, time) {
     }
     return value;
 }
+
 /** Round-number ticks covering [min, max], about `count` of them. */
 function ticks(min, max, count = 4) {
     const raw = (max - min) / count || 1;
@@ -1903,11 +1912,975 @@ function ticks(min, max, count = 4) {
     }
     return out;
 }
-const isTemperature = (unit) => ["°C", "°F", "K"].includes(unit);
 
-const LEFT = 40, TOP = 24, BOTTOM = 196, H = 230, 
-/** Room right of the plot for the second scale. */
-GUTTER = 44;
+const LEFT$1 = 44;
+const TOP$1 = 24;
+const PLOT_BOTTOM = 196;
+/** Room right of the plot for each additional scale. */
+const GUTTER$1 = 44;
+/** One lane below the plot, and the gap above the first. */
+const LANE = 14;
+const LANE_GAP = 6;
+/** The left and right units of a chart; lanes have no scale. */
+function units(all, leftUnit) {
+    const series = all.filter((s) => s.kind !== "lane");
+    const left = leftUnit ??
+        series.find((s) => isTemperature(s.unit))?.unit ??
+        series[0]?.unit ??
+        "";
+    return [left, series.find((s) => s.unit !== left)?.unit];
+}
+/** Units rendered, in axis order. Pass the length to lineChartTimeAt. */
+function chartUnits(all, leftUnit, maxUnits = 2) {
+    const [left] = units(all, leftUnit);
+    return [
+        ...new Set([
+            left,
+            ...all.filter((s) => s.kind !== "lane").map((s) => s.unit),
+        ]),
+    ].slice(0, maxUnits);
+}
+function rightMargin(count) {
+    return count <= 1 ? 12 : GUTTER$1 * (count - 1);
+}
+/**
+ * Unbroken spells of a series. A step holds its value until the next change, so
+ * its spell runs on to the moment it became unavailable.
+ */
+function runs$1(points, hold) {
+    const out = [];
+    let current = [];
+    for (const [t, v] of points) {
+        if (v === undefined) {
+            if (current.length) {
+                if (hold)
+                    current.push([t, current[current.length - 1][1]]);
+                out.push(current);
+            }
+            current = [];
+        }
+        else
+            current.push([t, v]);
+    }
+    if (current.length)
+        out.push(current);
+    return out;
+}
+function scale$1(series, pad, domain) {
+    if (domain &&
+        Number.isFinite(domain[0]) &&
+        Number.isFinite(domain[1]) &&
+        domain[1] > domain[0]) {
+        const [min, max] = domain;
+        return {
+            min,
+            max,
+            marks: [min, ...ticks(min, max).filter((v) => v > min && v < max), max],
+        };
+    }
+    const values = series.flatMap((s) => s.points.flatMap(([, v]) => (v === undefined ? [] : [v])));
+    if (!values.length)
+        return undefined;
+    const marks = ticks(Math.min(...values) - pad, Math.max(...values) + pad);
+    return { marks, min: marks[0], max: marks[marks.length - 1] };
+}
+/** Monotone cubic through the points: smooth, never overshooting a reading. */
+function smoothPath(pts) {
+    const n = pts.length;
+    if (n < 3)
+        return pts
+            .map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`)
+            .join(" ");
+    const d = [];
+    for (let i = 0; i < n - 1; i++)
+        d.push((pts[i + 1][1] - pts[i][1]) / (pts[i + 1][0] - pts[i][0] || 1));
+    const m = [d[0]];
+    for (let i = 1; i < n - 1; i++)
+        m.push(d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2);
+    m.push(d[n - 2]);
+    let path = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+    for (let i = 0; i < n - 1; i++) {
+        const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], h = (x1 - x0) / 3;
+        path += ` C${(x0 + h).toFixed(1)},${(y0 + m[i] * h).toFixed(1)} ${(x1 - h).toFixed(1)},${(y1 - m[i + 1] * h).toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`;
+    }
+    return path;
+}
+/** Hours between x-axis ticks, fewer on a narrow chart. */
+function tickEvery(hours, narrow) {
+    if (hours <= 6)
+        return narrow ? 2 : 1;
+    if (hours <= 24)
+        return narrow ? 6 : 4;
+    return narrow ? 48 : 24;
+}
+/**
+ * One chart of related readings: the left scale in the main unit, a right-hand
+ * scale for a reading in another unit, dashed steps for setpoints and a lane per
+ * on/off state below the plot. Unavailable spells are gaps.
+ */
+function lineChart(all, start, end, hover, text, options = {}) {
+    const W = options.width ?? 600;
+    const fill = options.fill ?? true;
+    const series = all.filter((s) => s.kind !== "lane");
+    const lanes = all.filter((s) => s.kind === "lane");
+    // Without readings the chart is just its lanes.
+    const BOTTOM = series.length ? PLOT_BOTTOM : TOP$1 - LANE_GAP;
+    const END = BOTTOM + (lanes.length ? LANE_GAP + lanes.length * LANE : 0);
+    const H = END + 34;
+    const axisUnits = chartUnits(series, options.leftUnit, options.maxUnits);
+    const RIGHT = W - rightMargin(axisUnits.length);
+    const pad = (list, unit) => isTemperature(unit) ||
+        list.some((s) => s.points.some(([, v]) => v !== undefined && Math.abs(v) >= 10))
+        ? 1
+        : 0.1;
+    const axes = axisUnits.map((unit) => {
+        const list = series.filter((s) => s.unit === unit);
+        return {
+            unit,
+            list,
+            scale: scale$1(list, pad(list, unit), options.domains?.[unit]),
+        };
+    });
+    const x = (t) => LEFT$1 +
+        ((Math.min(Math.max(t, start), end) - start) / (end - start)) *
+            (RIGHT - LEFT$1);
+    const y = (v, s) => BOTTOM - ((v - s.min) / (s.max - s.min || 1)) * (BOTTOM - TOP$1);
+    const every = tickEvery((end - start) / 3600000, W < 480);
+    const xTicks = [];
+    const hour = new Date(start);
+    hour.setMinutes(0, 0, 0);
+    let midnights = 0;
+    for (let t = hour.getTime(); t <= end; t += 3600000) {
+        if (t < start)
+            continue;
+        const h = new Date(t).getHours();
+        if (every >= 24
+            ? h === 0 && midnights++ % (every / 24) === 0
+            : h % every === 0)
+            xTicks.push(t);
+    }
+    // Leave room for localized clock labels, including a 12-hour AM/PM suffix.
+    let previousLabelRight = -Infinity;
+    const labeledTicks = xTicks.filter((t) => {
+        const half = text.time(t, every >= 24).length * 3.5;
+        if (x(t) - half < previousLabelRight + 10)
+            return false;
+        previousLabelRight = x(t) + half;
+        return true;
+    });
+    const paths = (s, sc) => runs$1(s.points, s.kind === "step").map((run) => {
+        const pts = run.map(([t, v]) => [x(t), y(v, sc)]);
+        const line = pts.length === 1
+            ? `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)} h0.01`
+            : s.kind === "step"
+                ? pts
+                    .map(([px, py], i) => i
+                    ? `H${px.toFixed(1)} V${py.toFixed(1)}`
+                    : `M${px.toFixed(1)},${py.toFixed(1)}`)
+                    .join(" ")
+                : options.smooth
+                    ? smoothPath(pts)
+                    : pts
+                        .map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)},${py.toFixed(1)}`)
+                        .join(" ");
+        const area = fill && s.kind !== "step" && pts.length > 1
+            ? `${line} L${pts[pts.length - 1][0].toFixed(1)},${BOTTOM} L${pts[0][0].toFixed(1)},${BOTTOM} Z`
+            : "";
+        return { line, area };
+    });
+    // As many decimals as the tick steps need (2.5 steps show 57.5, not 58).
+    const digits = (sc) => Math.min(2, Math.max(...sc.marks.map((v) => String(v).split(".")[1]?.length ?? 0)));
+    const draw = (s, sc) => {
+        const parts = paths(s, sc);
+        const cls = `series-${s.color}`;
+        return w `${parts.map((p) => (p.area ? w `<path class=${`area ${cls}`} d=${p.area}></path>` : A))}<path class=${`line ${cls}${s.kind === "step" ? " dashed" : ""}`} data-entity=${s.entityId} d=${parts.map((p) => p.line).join(" ")}></path>`;
+    };
+    const lane = (s, i) => {
+        const top = BOTTOM + LANE_GAP + i * LANE;
+        const spells = s.points
+            .map(([t, v], j) => ({
+            from: t,
+            to: Math.min(end, s.points[j + 1]?.[0] ?? end),
+            value: v,
+        }))
+            .filter((p) => p.value !== undefined);
+        const rect = (p, cls) => w `<rect class=${cls} x=${x(p.from).toFixed(1)} y=${top} width=${Math.max(1, x(p.to) - x(p.from)).toFixed(1)} height=${LANE - 4} rx="2"></rect>`;
+        return w `<g class=${`history-lane series-${s.color}`} data-entity=${s.entityId}>${spells.map((p) => rect(p, "lane-track"))}${spells.filter((p) => p.value === 1).map((p) => rect(p, "lane-on"))}</g>`;
+    };
+    const grid = axes.find((a) => a.scale)?.scale;
+    return w `<svg class="history-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label=${text.label}>
+    <title>${text.label}</title>
+    <defs>${[0, 1, 2, 3, 4].map((c) => w `<linearGradient id=${`history-fill-${c}`} class=${`series-${c}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="fill-top"></stop><stop offset="1" class="fill-bottom"></stop></linearGradient>`)}</defs>
+    ${grid?.marks.map((v) => w `<line class="grid" x1=${LEFT$1} x2=${RIGHT} y1=${y(v, grid)} y2=${y(v, grid)}></line>`)}
+    ${axes.map(({ unit, scale: sc }, i) => sc
+        ? w `
+      ${sc.marks.map((v) => w `<text class="axis" x=${i === 0 ? LEFT$1 - 6 : RIGHT + 6 + (i - 1) * GUTTER$1} y=${y(v, sc) + 4} text-anchor=${i === 0 ? "end" : "start"}>${text.number(v, digits(sc))}</text>`)}
+      ${unit ? w `<text class="axis unit" x=${i === 0 ? 4 : RIGHT + (i - 1) * GUTTER$1 + 4} y="12">${unit}</text>` : A}`
+        : A)}
+    ${labeledTicks.map((t) => w `<line class="grid" x1=${x(t)} x2=${x(t)} y1=${TOP$1} y2=${END}></line><text class="axis" x=${x(t)} y=${END + 18} text-anchor="middle">${text.time(t, every >= 24)}</text>`)}
+    ${axes.map(({ list, scale: sc }) => (sc ? list.map((s) => draw(s, sc)) : A))}
+    ${lanes.map(lane)}
+    ${hover === undefined ? A : w `<line class="cursor" x1=${x(hover)} x2=${x(hover)} y1=${TOP$1} y2=${END}></line>`}
+  </svg>`;
+}
+/** The time under a pointer over a line chart. */
+function lineChartTimeAt(event, element, start, end, twoScales) {
+    const box = element.getBoundingClientRect();
+    const W = element.viewBox?.baseVal?.width || box.width;
+    const px = ((event.clientX - box.left) / box.width) * W;
+    const count = typeof twoScales === "number" ? twoScales : twoScales ? 2 : 1;
+    const ratio = (px - LEFT$1) / (W - rightMargin(count) - LEFT$1);
+    return start + Math.min(1, Math.max(0, ratio)) * (end - start);
+}
+
+/**
+ * The state of one history view: its range, what it loaded for which window,
+ * the time under the pointer, loading and failure, and the plot's width.
+ *
+ * A reply that arrives after the range changed, the view was reset or the host
+ * left the page is dropped, so a slow request never overwrites a newer one.
+ */
+class HistoryController {
+    constructor(host, load, options = {}) {
+        this.host = host;
+        this.load = load;
+        this.loading = false;
+        this.error = "";
+        /** The plot's width in px, following its element (see `observe`). */
+        this.width = 600;
+        this.ticket = 0;
+        this.range = options.range ?? 24;
+        host.addController(this);
+    }
+    hostDisconnected() {
+        this.ticket++;
+        this.loading = false;
+        this.resize?.disconnect();
+        this.resize = this.observed = undefined;
+    }
+    /** Load `range` (the current one by default). The failure text is prefixed with `failed`. */
+    async reload(range = this.range, failed = "") {
+        const ticket = ++this.ticket;
+        this.range = range;
+        this.loading = true;
+        this.error = "";
+        this.hover = undefined;
+        this.host.requestUpdate();
+        const end = Date.now();
+        try {
+            const data = await this.load(range, end);
+            if (ticket !== this.ticket)
+                return;
+            this.data = data;
+            this.window = [end - range * 3600000, end];
+        }
+        catch (error) {
+            if (ticket !== this.ticket)
+                return;
+            this.data = this.window = undefined;
+            const message = error instanceof Error
+                ? error.message
+                : typeof error === "object" && error && "message" in error
+                    ? String(error.message)
+                    : String(error);
+            this.error = failed ? `${failed}: ${message}` : message;
+        }
+        this.loading = false;
+        this.host.requestUpdate();
+    }
+    /** Forget what was loaded and ignore replies still on their way. */
+    reset() {
+        this.ticket++;
+        this.data = this.window = this.hover = undefined;
+        this.loading = false;
+        this.error = "";
+        this.host.requestUpdate();
+    }
+    /** Stop listening for a reply without forgetting what is shown (a closed dialog). */
+    cancel() {
+        this.ticket++;
+        this.loading = false;
+        this.hover = undefined;
+    }
+    setHover(time) {
+        if (time === this.hover)
+            return;
+        this.hover = time;
+        this.host.requestUpdate();
+    }
+    /** Follow an element's width, so the chart is drawn at its real size. */
+    observe(element) {
+        if (!element || element === this.observed)
+            return;
+        this.resize?.disconnect();
+        this.observed = element;
+        this.resize = new ResizeObserver(([entry]) => {
+            const width = Math.round(entry.contentRect.width);
+            // Redraw next frame, outside the observer's own layout pass.
+            if (width > 0 && Math.abs(width - this.width) > 4)
+                requestAnimationFrame(() => {
+                    this.width = width;
+                    this.host.requestUpdate();
+                });
+        });
+        this.resize.observe(element);
+    }
+}
+
+/**
+ * The body of a history view, shared by a card's dialog and the history card:
+ * range buttons, the chart with a pointer readout, the time read, and a legend
+ * whose entries open each entity's more-info.
+ */
+function historyView(ctl, o) {
+    const { data, window: range, hover, error } = ctl;
+    const long = ctl.range > 48;
+    const legend = data !== undefined && range ? o.legend(data, hover) : [];
+    return b `<div
+      class="history-ranges"
+      role="group"
+      aria-label=${o.strings.ranges}
+    >
+      ${(o.ranges ?? RANGES$1).map((hours) => b `<button
+            class="history-range"
+            type="button"
+            data-range=${hours}
+            aria-pressed=${String(ctl.range === hours)}
+            @click=${() => void ctl.reload(hours, o.strings.failed)}
+          >
+            ${o.format.span(hours)}
+          </button>`)}
+    </div>
+    <div
+      class="history-plot"
+      aria-busy=${String(ctl.loading)}
+      @pointermove=${(e) => {
+        const svg = e.currentTarget.querySelector("svg");
+        if (!svg || !range || data === undefined)
+            return;
+        ctl.setHover(o.timeAt(e, svg, range, data));
+    }}
+      @pointerleave=${() => ctl.setHover(undefined)}
+    >
+      ${error
+        ? b `<div class="history-note failed" role="alert">
+              <span>${error}</span>
+              <button
+                class="history-range"
+                type="button"
+                data-retry
+                @click=${() => void ctl.reload(ctl.range, o.strings.failed)}
+              >
+                ${o.strings.retry}
+              </button>
+            </div>`
+        : data === undefined || !range
+            ? b `<p class="history-note" role="status">
+                ${o.strings.loading}
+              </p>`
+            : o.isEmpty(data)
+                ? b `<p class="history-note">${o.strings.empty}</p>`
+                : o.chart(data, range, hover, Math.max(280, ctl.width))}
+    </div>
+    ${data !== undefined && range && !error && !o.isEmpty(data)
+        ? b `<label class="history-inspector"
+            >${o.strings.inspect}
+            <input
+              type="range"
+              min=${range[0]}
+              max=${range[1]}
+              step=${(range[1] - range[0]) / 200}
+              .value=${String(hover ?? range[1])}
+              aria-valuetext=${o.format.moment(hover ?? range[1])}
+              @input=${(e) => ctl.setHover(Number(e.target.value))}
+            />
+          </label>`
+        : A}
+    <p class="history-when" aria-live="polite">
+      ${hover === undefined ? o.strings.now : long ? o.format.moment(hover) : o.format.time(hover)}
+    </p>
+    <div class="history-legend">
+      ${data !== undefined && o.renderLegend
+        ? o.renderLegend(data, hover)
+        : legend.map((entry) => b `<button
+                  class=${`history-item series-${entry.color}${entry.kind ? ` kind-${entry.kind}` : ""}`}
+                  type="button"
+                  data-series=${entry.entityId}
+                  title=${entry.title ?? A}
+                  @click=${(e) => o.select(entry.entityId, e)}
+                >
+                  <span class="swatch" aria-hidden="true"></span>
+                  <span class="label">${entry.name}</span>
+                  <strong>${entry.value}</strong>
+                </button>`)}
+    </div>`;
+}
+/** Close a dialog when its backdrop, outside the box, is clicked. */
+function backdrop(e) {
+    if (e.target !== e.currentTarget)
+        return;
+    const dialog = e.currentTarget;
+    const r = dialog.getBoundingClientRect();
+    if (e.clientX < r.left ||
+        e.clientX > r.right ||
+        e.clientY < r.top ||
+        e.clientY > r.bottom)
+        dialog.close();
+}
+/**
+ * A card's history dialog (`<dialog id="history">`). Open it with
+ * `openHistoryDialog`, which also starts loading.
+ */
+function historyDialog(ctl, o) {
+    const close = (e) => e.currentTarget
+        .closest("dialog")
+        ?.close();
+    return b `<dialog
+    id="history"
+    class="history-dialog"
+    aria-labelledby="history-title"
+    @click=${backdrop}
+    @close=${(e) => {
+        ctl.cancel();
+        // Back to what opened the history, for keyboard and screen reader users.
+        e.currentTarget.trigger?.focus?.();
+        o.closed?.();
+    }}
+  >
+    <div class="history-top">
+      <h2 class="history-title" id="history-title">
+        ${o.strings.history}${o.subtitle ? b ` <span class="history-subtitle">${o.subtitle}</span>` : A}
+      </h2>
+      ${o.headerActions ?? A}
+      <button
+        class="history-close"
+        type="button"
+        data-close-history
+        aria-label=${o.strings.closeHistory}
+        title=${o.strings.closeHistory}
+        @click=${close}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+    ${historyView(ctl, {
+        ...o,
+        // Home Assistant's more-info opens over the page: close the history first.
+        select: (id, e) => {
+            close(e);
+            o.select(id, e);
+        },
+    })}
+    ${o.footer ?? A}
+  </dialog>`;
+}
+/**
+ * Open the history dialog in `root` and load its data. Focus returns to
+ * `trigger` (the tapped reading) when the dialog closes.
+ */
+async function openHistoryDialog(ctl, root, host, failed, trigger) {
+    ctl.reset();
+    await host.updateComplete;
+    const dialog = root?.querySelector("dialog#history");
+    if (dialog)
+        dialog.trigger = trigger ?? undefined;
+    if (dialog && !dialog.open)
+        dialog.showModal();
+    ctl.observe(root?.querySelector(".history-plot"));
+    await ctl.reload(ctl.range, failed);
+}
+
+/** The history view's own words, in English and Norwegian Bokmål. */
+/** `nb` for Bokmål and its aliases (`nb-NO`, legacy `no`, `nn` → Bokmål), else `en`. */
+function historyLanguage(hass) {
+    const code = (hass?.language || hass?.locale?.language || "en")
+        .toLowerCase()
+        .replace(/_/g, "-")
+        .split("-")[0];
+    return ["nb", "no", "nn"].includes(code) ? "nb" : "en";
+}
+/**
+ * The locale for dates and numbers, kept apart from the dictionary: `en-GB`
+ * keeps its 24-hour clock, and Norwegian aliases format as Bokmål.
+ */
+function historyLocale(hass) {
+    const code = (hass?.language || hass?.locale?.language || "en")
+        .toLowerCase()
+        .replace(/_/g, "-")
+        .replace(/^(no|nn)(?=-|$)/, "nb");
+    try {
+        return Intl.getCanonicalLocales(code)[0] || "en";
+    }
+    catch {
+        return "en";
+    }
+}
+const en = {
+    history: "History",
+    inspect: "Inspect time",
+    showHistory: "Show history",
+    closeHistory: "Close history",
+    ranges: "History ranges",
+    loading: "Loading history…",
+    empty: "No history for this period.",
+    failed: "Could not load history",
+    retry: "Try again",
+    now: "Now",
+    unavailable: "Unavailable",
+    on: "On",
+    off: "Off",
+    target: "target",
+    mode: "History view",
+    modeCard: "In the card",
+    modeMoreInfo: "Home Assistant's details",
+    modePanel: "Home Assistant's History page",
+};
+const nb = {
+    history: "Historikk",
+    inspect: "Undersøk tidspunkt",
+    showHistory: "Vis historikk",
+    closeHistory: "Lukk historikk",
+    ranges: "Tidsrom",
+    loading: "Henter historikk …",
+    empty: "Ingen historikk for denne perioden.",
+    failed: "Kunne ikke hente historikk",
+    retry: "Prøv igjen",
+    now: "Nå",
+    unavailable: "Utilgjengelig",
+    on: "På",
+    off: "Av",
+    target: "ønsket",
+    mode: "Historikkvisning",
+    modeCard: "I kortet",
+    modeMoreInfo: "Home Assistants detaljer",
+    modePanel: "Home Assistants historikkside",
+};
+function historyStrings(hass) {
+    return historyLanguage(hass) === "nb" ? nb : en;
+}
+
+/** Locale formatting for charts, following HA's language and 12/24-hour setting. */
+function historyFormat(hass) {
+    const locale = historyLocale(hass);
+    const format = hass?.locale?.time_format;
+    const hour12 = format === "12" ? true : format === "24" ? false : undefined;
+    const safe = (make, fallback) => {
+        try {
+            return make();
+        }
+        catch {
+            return fallback;
+        }
+    };
+    return {
+        locale,
+        /** A clock time, or a weekday and date on a multi-day axis. */
+        time: (ms, withDay = false) => safe(() => new Intl.DateTimeFormat(locale, withDay
+            ? { weekday: "short", day: "numeric" }
+            : { hour: "2-digit", minute: "2-digit", hour12 }).format(ms), new Date(ms).toLocaleTimeString()),
+        /** Day and time, for the readout above the legend on a multi-day range. */
+        moment: (ms) => safe(() => new Intl.DateTimeFormat(locale, {
+            weekday: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12,
+        }).format(ms), new Date(ms).toLocaleString()),
+        /** A fixed number of decimals, for axis ticks. */
+        number: (value, digits) => safe(() => new Intl.NumberFormat(locale, {
+            minimumFractionDigits: digits,
+            maximumFractionDigits: digits,
+        }).format(value), value.toFixed(digits)),
+        /** A reading: up to `digits` decimals, and its unit. */
+        reading: (value, unit = "", digits = 1) => `${safe(() => new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(value), String(value))}${unit ? ` ${unit}` : ""}`,
+        /** A range button's label: "6 h", "24 t", "7 d". */
+        span: (hours) => safe(() => new Intl.NumberFormat(locale, {
+            style: "unit",
+            unit: hours < 48 ? "hour" : "day",
+            unitDisplay: "short",
+        }).format(hours < 48 ? hours : hours / 24), hours < 48 ? `${hours} h` : `${hours / 24} d`),
+    };
+}
+
+/**
+ * Styles for the history view, chart, timeline and dialog. A card maps its own
+ * tokens onto the `--history-*` variables (on its host or card); without them
+ * the view follows the Home Assistant theme.
+ *
+ * Palette: `.series-0` … `.series-4` set `--series` from `--history-series-N`.
+ * Timeline bands take `--band`, which a card sets per tone class (`.b-<tone>`)
+ * or per band (Home Assistant state colors).
+ */
+const historyStyles = i$4 `
+  :host {
+    --history-text-color: var(
+      --history-text,
+      var(--primary-text-color, #1b1b1a)
+    );
+    --history-muted-color: var(
+      --history-muted,
+      var(--secondary-text-color, #5b5a55)
+    );
+    --history-surface-color: var(
+      --history-surface,
+      var(--ha-card-background, var(--card-background-color, #fff))
+    );
+    --history-pill-color: var(
+      --history-pill,
+      var(--secondary-background-color, #f1f2f3)
+    );
+    --history-accent-color: var(
+      --history-accent,
+      var(--primary-color, #03a9f4)
+    );
+    --history-error-color: var(--history-error, var(--error-color, #c62828));
+  }
+  .series-0 {
+    --series: var(--history-series-0, var(--primary-color, #03a9f4));
+  }
+  .series-1 {
+    --series: var(--history-series-1, var(--orange-color, #ff9800));
+  }
+  .series-2 {
+    --series: var(--history-series-2, var(--green-color, #4caf50));
+  }
+  .series-3 {
+    --series: var(--history-series-3, var(--purple-color, #9c27b0));
+  }
+  .series-4 {
+    --series: var(--history-series-4, var(--red-color, #f44336));
+  }
+  .history-ranges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .history-range {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 22px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--history-text-color);
+    background: color-mix(in srgb, var(--history-text-color) 7%, transparent);
+    cursor: pointer;
+  }
+  .history-range[aria-pressed="true"] {
+    color: color-mix(
+      in srgb,
+      var(--history-accent-color) 65%,
+      var(--history-text-color)
+    );
+    background: color-mix(
+      in srgb,
+      var(--history-accent-color) 24%,
+      transparent
+    );
+    box-shadow: inset 0 0 0 1.5px
+      color-mix(in srgb, var(--history-accent-color) 60%, transparent);
+  }
+  .history-range:focus-visible,
+  .history-item:focus-visible,
+  .history-action:focus-visible,
+  .history-inspector input:focus-visible,
+  .history-close:focus-visible {
+    outline: 2px solid var(--history-accent-color);
+    outline-offset: 2px;
+  }
+  .history-inspector {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    color: var(--history-muted-color);
+    font-size: 12px;
+  }
+  .history-inspector input {
+    flex: 1;
+    width: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    min-width: 120px;
+    min-height: 44px;
+    accent-color: var(--history-accent-color);
+  }
+  .timeline .band-label {
+    fill: var(--history-text-color);
+    font-size: 11px;
+    pointer-events: none;
+  }
+  .history-plot {
+    min-height: 120px;
+    touch-action: pan-y;
+  }
+  .history-chart,
+  .timeline {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .history-chart .grid,
+  .timeline .grid {
+    stroke: color-mix(in srgb, var(--history-muted-color) 22%, transparent);
+  }
+  .history-chart .axis,
+  .timeline .axis,
+  .timeline .lane-label {
+    fill: var(--history-muted-color);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .timeline .lane-label {
+    font-weight: 600;
+  }
+  .history-chart .line {
+    fill: none;
+    stroke: var(--series);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .history-chart .dashed {
+    stroke-dasharray: 5 4;
+  }
+  .history-chart .area {
+    stroke: none;
+  }
+  .history-chart .area.series-0 {
+    fill: url(#history-fill-0);
+  }
+  .history-chart .area.series-1 {
+    fill: url(#history-fill-1);
+  }
+  .history-chart .area.series-2 {
+    fill: url(#history-fill-2);
+  }
+  .history-chart .area.series-3 {
+    fill: url(#history-fill-3);
+  }
+  .history-chart .area.series-4 {
+    fill: url(#history-fill-4);
+  }
+  .history-chart .fill-top {
+    stop-color: var(--series);
+    stop-opacity: var(--history-fill-opacity, 0.32);
+  }
+  .history-chart .fill-bottom {
+    stop-color: var(--series);
+    stop-opacity: 0;
+  }
+  .history-chart .lane-track {
+    fill: color-mix(in srgb, var(--series) 16%, transparent);
+  }
+  .history-chart .lane-on {
+    fill: var(--series);
+  }
+  .history-chart .cursor,
+  .timeline .cursor {
+    stroke: var(--history-muted-color);
+    stroke-dasharray: 3 3;
+  }
+  .timeline .track {
+    fill: color-mix(in srgb, var(--history-muted-color) 10%, transparent);
+  }
+  .timeline .band {
+    fill: var(--band, var(--history-muted-color));
+  }
+  .timeline .band.b-gap {
+    fill: url(#history-hatch);
+  }
+  .timeline .hatch-bg {
+    fill: color-mix(in srgb, var(--history-muted-color) 12%, transparent);
+  }
+  .timeline .hatch {
+    stroke: color-mix(in srgb, var(--history-muted-color) 45%, transparent);
+    stroke-width: 2;
+  }
+  .history-note {
+    margin: 40px 0;
+    text-align: center;
+    font-size: 14px;
+    color: var(--history-muted-color);
+  }
+  .history-note.failed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 14px;
+    margin: 24px 0;
+    padding: 12px 14px;
+    border-radius: var(--history-tile, 16px);
+    color: var(--history-text-color);
+    background: color-mix(
+      in srgb,
+      var(--history-error-color) 16%,
+      var(--history-pill-color)
+    );
+  }
+  .history-when {
+    margin: -6px 8px 0;
+    font-size: 12.5px;
+    color: var(--history-muted-color);
+    font-variant-numeric: tabular-nums;
+  }
+  .history-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+    gap: 6px;
+  }
+  .history-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 2px 10px;
+    min-height: 44px;
+    padding: 8px 14px;
+    border: 0;
+    border-radius: var(--history-tile, 16px);
+    font: inherit;
+    text-align: left;
+    color: var(--history-text-color);
+    background: var(--history-pill-color);
+    cursor: pointer;
+  }
+  .history-item .swatch {
+    grid-row: span 2;
+    width: 16px;
+    height: 0;
+    border-top: 3px solid var(--series);
+  }
+  .history-item.kind-step .swatch {
+    border-top-style: dashed;
+  }
+  .history-item.kind-lane .swatch {
+    height: 10px;
+    border-top: 0;
+    border-radius: 2px;
+    background: var(--series);
+  }
+  .history-item .label {
+    font-size: 0.78rem;
+    color: var(--history-muted-color);
+    overflow-wrap: anywhere;
+  }
+  .history-item strong {
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  dialog.history-dialog {
+    color: var(--history-text-color);
+    background: var(--history-surface-color);
+    border: 0;
+    border-radius: var(--history-radius, 24px);
+    padding: 16px;
+    width: min(640px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    box-shadow: 0 16px 60px #0006;
+  }
+  dialog.history-dialog[open] {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  dialog.history-dialog::backdrop {
+    background: #0008;
+  }
+  .history-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 8px;
+  }
+  .history-title {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--history-muted-color);
+    overflow-wrap: anywhere;
+  }
+  .history-subtitle {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .history-action,
+  .history-close {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    color: var(--history-muted-color);
+    background: var(--history-pill-color);
+    cursor: pointer;
+  }
+  .history-action svg,
+  .history-close svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  @media (max-width: 400px) {
+    dialog.history-dialog {
+      padding: 12px;
+    }
+  }
+`;
+
+const RANGES = {
+    readings: [6, 24, 168],
+    water: [6, 24, 168],
+    cop: [168, 720, 2160],
+};
+const DEFAULT_RANGE = {
+    readings: 24,
+    water: 24,
+    cop: 720,
+};
+/** Card roles retain their palette and setpoint semantics in the shared chart. */
+function sharedSeries(series) {
+    return series.map((s) => ({
+        ...s,
+        tag: s.role,
+        color: s.role === "outdoor"
+            ? 2
+            : s.role === "pressure" || s.role === "waterCop"
+                ? 3
+                : s.role === "flowTarget" || s.role === "waterTarget"
+                    ? 1
+                    : 0,
+        kind: s.role === "flowTarget" || s.role === "waterTarget" ? "step" : "line",
+        states: [],
+    }));
+}
+/** Keep raw recorder readings at every range, including attribute-based tank sensors. */
+async function loadHistory(connection, sources, states, hours, now = Date.now()) {
+    const loaded = await loadSeries(connection, sources.map((s) => ({
+        ...s,
+        tag: s.role,
+        color: 0,
+    })), states, hours, { now, statisticsFrom: 0 });
+    return loaded.map((s) => ({ ...s, role: s.tag }));
+}
+
+const LEFT = 40, TOP = 24, BOTTOM = 196, H = 230, GUTTER = 44;
 function runs(points) {
     const out = [];
     let current = [];
@@ -1933,8 +2906,7 @@ function scale(series, pad) {
     return { marks, min: marks[0], max: marks[marks.length - 1] };
 }
 /**
- * Temperatures share the left scale; anything else (water pressure) gets the
- * right-hand scale in its own unit.
+ * Daily COP and outdoor temperature retain their custom daily chart.
  */
 function chart(series, start, end, hover, text, W = 600) {
     const RIGHT = W - GUTTER;
@@ -1976,8 +2948,6 @@ function chart(series, start, end, hover, text, W = 600) {
             : h % every === 0)
             xTicks.push(t);
     }
-    // A setpoint holds until it is changed, so it steps; measurements are lines.
-    const STEPPED = new Set(["flowTarget", "waterTarget"]);
     const path = (s, sc) => runs(s.points)
         .map((run) => run
         .map(([t, v], i) => {
@@ -1985,9 +2955,7 @@ function chart(series, start, end, hover, text, W = 600) {
         // A lone reading between gaps is drawn as a dot.
         if (!i)
             return run.length === 1 ? `M${at} h0.01` : `M${at}`;
-        return STEPPED.has(s.role)
-            ? `L${x(t).toFixed(1)},${y(run[i - 1][1], sc).toFixed(1)} L${at}`
-            : `L${at}`;
+        return `L${at}`;
     })
         .join(" "))
         .join(" ");
@@ -2038,9 +3006,7 @@ const DAY = 86400000;
  * same statistics as the card's efficiency summary, with the day's mean
  * outdoor temperature. A day without enough electricity is a gap.
  */
-async function loadCop(connection, energy, outdoor, days, 
-/** The heat entities, so the legend can open their more-info. */
-entities = {}, now = Date.now()) {
+async function loadCop(connection, energy, outdoor, days, entities = {}, now = Date.now()) {
     const modes = ["heating", "water"].filter((m) => energy.ids[m]);
     const ids = [
         ...modes.flatMap((m) => [energy.ids[m].electric, energy.ids[m].heat]),
@@ -2261,11 +3227,7 @@ class HeatpumpCard extends i$1 {
         this.vetoHours = 2;
         /** History dialog: chosen range, loaded series and the hovered time. */
         this.group = "readings";
-        this.range = DEFAULT_RANGE.readings;
-        this.historyLoading = false;
-        this.historyError = "";
-        this.historyTicket = 0;
-        this.plotWidth = 600;
+        this.history = new HistoryController(this, (range, end) => this.fetchHistory(range, end));
         this.t = (key) => localize(language(this.ha), key);
     }
     get hass() {
@@ -2300,10 +3262,7 @@ class HeatpumpCard extends i$1 {
         this.pending = false;
         this.feedback = "";
         this.vetoHours = 2;
-        this.historyTicket++;
-        this.series = this.window = this.hover = undefined;
-        this.historyLoading = false;
-        this.historyError = "";
+        this.history.reset();
         this.shadowRoot?.querySelector("#history")?.close();
         this.resolve();
         this.requestUpdate();
@@ -2315,23 +3274,12 @@ class HeatpumpCard extends i$1 {
     disconnectedCallback() {
         super.disconnectedCallback();
         this.stop();
-        this.resize?.disconnect();
-        this.resize = undefined;
     }
     updated() {
-        const plot = this.shadowRoot?.querySelector(".history-plot");
-        if (!plot || this.resize)
-            return;
-        this.resize = new ResizeObserver(([entry]) => {
-            const width = Math.round(entry.contentRect.width);
-            // Redraw next frame, outside the observer's own layout pass.
-            if (width > 0 && Math.abs(width - this.plotWidth) > 4)
-                requestAnimationFrame(() => {
-                    this.plotWidth = width;
-                    this.requestUpdate();
-                });
-        });
-        this.resize.observe(plot);
+        this.history.observe(this.shadowRoot?.querySelector(".history-plot"));
+        this.shadowRoot
+            ?.querySelector("#history")
+            ?.classList.toggle("bubble", this.config?.appearance === "bubble");
     }
     start() {
         if (!this.ha || this.unwatch)
@@ -2355,6 +3303,7 @@ class HeatpumpCard extends i$1 {
         }, 60000);
     }
     stop() {
+        this.history.reset();
         this.unwatch?.();
         this.unwatch = undefined;
         if (this.timer)
@@ -2437,7 +3386,7 @@ class HeatpumpCard extends i$1 {
         return this.ha?.config?.unit_system?.temperature ?? "°C";
     }
     number(value) {
-        const n = numeric(value);
+        const n = numeric$1(value);
         return n === undefined
             ? "—"
             : new Intl.NumberFormat(language(this.ha), {
@@ -2510,9 +3459,9 @@ class HeatpumpCard extends i$1 {
             (Number(entity.attributes.supported_features ?? 0) & 1) === 0)
             return A;
         const value = temperature ? entity?.attributes.temperature : entity?.state;
-        const min = numeric(entity?.attributes[temperature ? "min_temp" : "min"]);
-        const max = numeric(entity?.attributes[temperature ? "max_temp" : "max"]);
-        const step = numeric(entity?.attributes[temperature ? "target_temp_step" : "step"]);
+        const min = numeric$1(entity?.attributes[temperature ? "min_temp" : "min"]);
+        const max = numeric$1(entity?.attributes[temperature ? "max_temp" : "max"]);
+        const step = numeric$1(entity?.attributes[temperature ? "target_temp_step" : "step"]);
         return b `<label
       >${this.t(label)}<input
         data-control=${role}
@@ -2521,7 +3470,7 @@ class HeatpumpCard extends i$1 {
         min=${o(min)}
         max=${o(max)}
         step=${step ?? "any"}
-        .value=${l(numeric(value) === undefined ? "" : String(value))}
+        .value=${l(numeric$1(value) === undefined ? "" : String(value))}
         ?disabled=${!this.enabled(role)}
         @change=${(e) => {
             const input = e.target;
@@ -2581,17 +3530,11 @@ class HeatpumpCard extends i$1 {
     }
     async openHistory(group) {
         if (group !== this.group) {
-            this.historyTicket++;
-            this.series = this.window = undefined;
             this.group = group;
-            this.range = DEFAULT_RANGE[group];
+            this.history.range = DEFAULT_RANGE[group];
         }
-        this.requestUpdate();
-        await this.updateComplete;
-        const dialog = this.shadowRoot?.querySelector("#history");
-        if (dialog && !dialog.open)
-            dialog.showModal();
-        void this.loadHistory();
+        const trigger = this.shadowRoot?.activeElement;
+        await openHistoryDialog(this.history, this.shadowRoot, this, this.t("historyFailed"), trigger);
     }
     /** The tank and its target: separate sensors, else the water heater's own. */
     waterSources() {
@@ -2620,167 +3563,62 @@ class HeatpumpCard extends i$1 {
                 : undefined;
         return [tank, target].filter((s) => !!s);
     }
-    async loadHistory(range = this.range) {
+    async fetchHistory(range, end) {
         if (!this.ha)
-            return;
-        const ticket = ++this.historyTicket;
-        const group = this.group;
-        this.range = range;
-        this.historyLoading = true;
-        this.historyError = "";
-        this.hover = undefined;
-        this.requestUpdate();
-        const end = Date.now();
+            return [];
+        const hass = this.ha;
         const roles = this.found.roles;
-        try {
-            let series;
-            if (group === "cop") {
-                const energy = this.energy ??
-                    (await loadEnergy(this.ha.connection, roles, this.config?.cop_window ?? "7d"));
-                series = await loadCop(this.ha.connection, energy, roles.outdoor?.entity_id, range / 24, {
-                    heating: roles.heatingHeat?.entity_id,
-                    water: roles.waterHeat?.entity_id,
-                }, end);
-            }
-            else {
-                const sources = group === "water"
-                    ? this.waterSources()
-                    : HeatpumpCard.HISTORY.flatMap((role) => {
-                        const id = roles[role]?.entity_id;
-                        return id ? [{ role, entityId: id }] : [];
-                    });
-                series = await loadHistory(this.ha.connection, sources, this.ha.states, range, end);
-            }
-            if (ticket !== this.historyTicket)
-                return;
-            this.series = series;
-            this.window = [end - range * 3600000, end];
+        if (this.group === "cop") {
+            const energy = this.energy ??
+                (await loadEnergy(hass.connection, roles, this.config?.cop_window ?? "7d"));
+            return loadCop(hass.connection, energy, roles.outdoor?.entity_id, range / 24, {
+                heating: roles.heatingHeat?.entity_id,
+                water: roles.waterHeat?.entity_id,
+            }, end);
         }
-        catch (error) {
-            if (ticket !== this.historyTicket)
-                return;
-            this.series = this.window = undefined;
-            this.historyError = `${this.t("historyFailed")}: ${error instanceof Error
-                ? error.message
-                : typeof error === "object" && error && "message" in error
-                    ? String(error.message)
-                    : String(error)}`;
-        }
-        this.historyLoading = false;
-        this.requestUpdate();
+        const sources = this.group === "water"
+            ? this.waterSources()
+            : HeatpumpCard.HISTORY.flatMap((role) => {
+                const id = roles[role]?.entity_id;
+                return id ? [{ role, entityId: id }] : [];
+            });
+        return loadHistory(hass.connection, sources, hass.states, range, end);
     }
     historyDialog() {
-        const locale = language(this.ha);
-        const hour12 = this.ha?.locale?.time_format === "12"
-            ? true
-            : this.ha?.locale?.time_format === "24"
-                ? false
-                : undefined;
-        const time = (ms, withDay) => new Intl.DateTimeFormat(locale, withDay
-            ? { weekday: "short", day: "numeric" }
-            : { hour: "2-digit", minute: "2-digit", hour12 }).format(ms);
-        const span = (hours) => new Intl.NumberFormat(locale, {
-            style: "unit",
-            unit: hours < 48 ? "hour" : "day",
-            unitDisplay: "short",
-        }).format(hours < 48 ? hours : hours / 24);
-        const format = (value, digits) => new Intl.NumberFormat(locale, {
-            minimumFractionDigits: digits,
-            maximumFractionDigits: digits,
-        }).format(value);
-        const series = this.series;
-        const window = this.window;
-        const at = this.hover;
-        const close = () => this.shadowRoot?.querySelector("#history")?.close();
-        return b `<dialog
-      id="history"
-      class=${this.config?.appearance === "bubble" ? "bubble" : ""}
-      aria-labelledby="history-title"
-      @close=${() => {
-            this.historyTicket++;
-            this.hover = undefined;
-        }}
-    >
-      <div class="history-head">
-        <h3 id="history-title">${this.t(HeatpumpCard.TITLES[this.group])}</h3>
-        <button
-          class="close"
-          data-close
-          aria-label=${this.t("close")}
-          title=${this.t("close")}
-          @click=${close}
-        >
-          ×
-        </button>
-      </div>
-      <div class="ranges" role="group" aria-label=${this.t("history")}>
-        ${RANGES[this.group].map((hours) => b `<button
-              data-range=${hours}
-              aria-pressed=${String(this.range === hours)}
-              @click=${() => void this.loadHistory(hours)}
-            >
-              ${span(hours)}
-            </button>`)}
-      </div>
-      <div
-        class="history-plot"
-        aria-busy=${String(this.historyLoading)}
-        @pointermove=${(e) => {
-            const svg = e.currentTarget.querySelector("svg");
-            if (!svg || !window)
-                return;
-            this.hover = timeAt(e, svg, window[0], window[1]);
-            this.requestUpdate();
-        }}
-        @pointerleave=${() => {
-            this.hover = undefined;
-            this.requestUpdate();
-        }}
-      >
-        ${this.historyError
-            ? b `<p class="feedback error" role="alert">
-                ${this.historyError}
-              </p>`
-            : !series || !window
-                ? b `<p class="hint" role="status">${this.t("loading")}</p>`
-                : series.every((s) => s.points.every(([, v]) => v === undefined))
-                    ? b `<p class="hint">${this.t("noHistory")}</p>`
-                    : chart(series, window[0], window[1], at, {
-                        number: format,
-                        time,
-                        label: this.t(HeatpumpCard.TITLES[this.group]),
-                    }, Math.max(280, this.plotWidth))}
-      </div>
-      ${this.group === "cop" ? b `<p class="hint">${this.t("copHint")}</p>` : A}
-      <p class="when" aria-live="polite">
-        ${at === undefined ? this.t("now") : time(at, this.group === "cop")}
-      </p>
-      <div class="legend">
-        ${(series ?? []).map((s) => {
-            const value = at === undefined
-                ? s.points[s.points.length - 1]?.[1]
-                : valueAt(s, at);
-            return b `<button
-            class=${`item s-${s.role}`}
-            data-series=${s.role}
-            @click=${() => {
-                close();
-                this.moreInfo(s.entityId);
-            }}
-          >
-            <span class="swatch"></span>
-            <span class="label">${this.t(HeatpumpCard.LABELS[s.role])}</span>
-            <strong
-              >${value === undefined
-                ? "—"
-                : s.unit === "COP"
-                    ? format(value, 2)
-                    : `${this.number(value)} ${s.unit}`}</strong
-            >
-          </button>`;
-        })}
-      </div>
-    </dialog>`;
+        const format = historyFormat(this.ha);
+        const title = this.t(HeatpumpCard.TITLES[this.group]);
+        return historyDialog(this.history, {
+            strings: { ...historyStrings(this.ha), history: title },
+            format,
+            ranges: RANGES[this.group],
+            footer: this.group === "cop"
+                ? b `<p class="hint">${this.t("copHint")}</p>`
+                : undefined,
+            chart: (series, [start, end], hover, width) => this.group === "cop"
+                ? chart(series, start, end, hover, { number: format.number, time: format.time, label: title }, width)
+                : lineChart(sharedSeries(series), start, end, hover, { number: format.number, time: format.time, label: title }, { width, fill: false }),
+            isEmpty: (series) => series.every((s) => s.points.every(([, value]) => value === undefined)),
+            timeAt: (event, svg, [start, end], series) => this.group === "cop"
+                ? timeAt(event, svg, start, end)
+                : lineChartTimeAt(event, svg, start, end, units(sharedSeries(series))[1] !== undefined),
+            legend: (series, at) => sharedSeries(series).map((s) => {
+                const value = at === undefined
+                    ? s.points[s.points.length - 1]?.[1]
+                    : valueAt(s, at);
+                return {
+                    entityId: s.entityId,
+                    name: this.t(HeatpumpCard.LABELS[s.tag]),
+                    value: value === undefined
+                        ? "—"
+                        : s.unit === "COP"
+                            ? format.number(value, 2)
+                            : format.reading(value, s.unit),
+                    color: s.color,
+                    kind: s.kind,
+                };
+            }),
+            select: (entityId) => this.moreInfo(entityId),
+        });
     }
     comfort() {
         const e = this.reading("climate").entity;
@@ -2837,7 +3675,7 @@ class HeatpumpCard extends i$1 {
           ><button
             class="secondary"
             data-action="quickVeto"
-            ?disabled=${!this.enabled("climate") || numeric(e?.attributes.temperature) === undefined}
+            ?disabled=${!this.enabled("climate") || numeric$1(e?.attributes.temperature) === undefined}
             @click=${() => void this.act("climate", "quickVeto", e?.attributes.temperature)}
           >
             ${this.t("startVeto")}</button
@@ -2862,10 +3700,10 @@ class HeatpumpCard extends i$1 {
             return A;
         const e = this.reading("water").entity;
         const tankRole = roles.tank ? "tank" : "water", targetRole = roles.waterTarget ? "waterTarget" : "water";
-        const tank = numeric(roles.tank
+        const tank = numeric$1(roles.tank
             ? this.reading("tank").entity?.state
             : e?.attributes.current_temperature);
-        const target = numeric(roles.waterTarget
+        const target = numeric$1(roles.waterTarget
             ? this.reading("waterTarget").entity?.state
             : e?.attributes.temperature);
         const tankUnit = String(roles.tank
@@ -3023,7 +3861,7 @@ ${JSON.stringify(fault.attributes.diagnostic_trouble_codes ?? [], null, 2)}</pre
         };
     }
 }
-HeatpumpCard.styles = styles;
+HeatpumpCard.styles = [styles, historyStyles];
 /** The readings drawn together in the history. */
 HeatpumpCard.HISTORY = [
     "flow",

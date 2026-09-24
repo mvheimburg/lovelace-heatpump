@@ -1,5 +1,6 @@
 import type { Connection, HassEntity } from "./types";
-import { available, numeric } from "./readings";
+import { loadSeries, type Series as SharedSeries } from "lovelace-card-history";
+export { valueAt, ticks, isTemperature } from "lovelace-card-history";
 
 /** Time (ms) and value; `undefined` breaks the line (unavailable). */
 export type Point = [number, number | undefined];
@@ -30,18 +31,25 @@ export const DEFAULT_RANGE: Record<HistoryGroup, number> = {
   cop: 720,
 };
 
-/** Home Assistant's compressed history row. */
-interface Row {
-  s: string;
-  a?: Record<string, unknown>;
-  lu?: number;
-  lc?: number;
+/** Card roles retain their palette and setpoint semantics in the shared chart. */
+export function sharedSeries(series: Series[]): SharedSeries[] {
+  return series.map((s) => ({
+    ...s,
+    tag: s.role,
+    color:
+      s.role === "outdoor"
+        ? 2
+        : s.role === "pressure" || s.role === "waterCop"
+          ? 3
+          : s.role === "flowTarget" || s.role === "waterTarget"
+            ? 1
+            : 0,
+    kind: s.role === "flowTarget" || s.role === "waterTarget" ? "step" : "line",
+    states: [],
+  }));
 }
 
-/**
- * The history of each role's entity over the last `hours`, from Home
- * Assistant's recorder, ending with the current state.
- */
+/** Keep raw recorder readings at every range, including attribute-based tank sensors. */
 export async function loadHistory(
   connection: Connection,
   sources: Source[],
@@ -49,85 +57,16 @@ export async function loadHistory(
   hours: number,
   now = Date.now(),
 ): Promise<Series[]> {
-  const start = now - hours * 3_600_000;
-  // Attribute sources need attributes on every row; the others do not.
-  const ask = (list: Source[], attributes: boolean) =>
-    list.length
-      ? connection.sendMessagePromise<Record<string, Row[]>>({
-          type: "history/history_during_period",
-          start_time: new Date(start).toISOString(),
-          entity_ids: [...new Set(list.map((s) => s.entityId))],
-          minimal_response: !attributes,
-          no_attributes: !attributes,
-          significant_changes_only: false,
-        })
-      : Promise.resolve({} as Record<string, Row[]>);
-  const [withAttributes, plain] = await Promise.all([
-    ask(
-      sources.filter((s) => s.attribute),
-      true,
-    ),
-    ask(
-      sources.filter((s) => !s.attribute),
-      false,
-    ),
-  ]);
-  const read = (
-    source: Source,
-    state: string,
-    attributes?: Record<string, unknown>,
-  ) =>
-    ["unavailable", "unknown", ""].includes(state)
-      ? undefined
-      : numeric(source.attribute ? attributes?.[source.attribute] : state);
-  return sources.map((source) => {
-    const current = states[source.entityId];
-    const rows = (source.attribute ? withAttributes : plain)[source.entityId];
-    const points: Point[] = (rows ?? []).map((row) => [
-      Math.max(start, (row.lu ?? row.lc ?? 0) * 1000),
-      read(source, row.s, row.a),
-    ]);
-    if (current)
-      points.push([
-        now,
-        available(current)
-          ? read(source, current.state, current.attributes)
-          : undefined,
-      ]);
-    return {
-      role: source.role,
-      entityId: source.entityId,
-      unit:
-        source.unit ?? String(current?.attributes.unit_of_measurement ?? ""),
-      points,
-    };
-  });
+  const loaded = await loadSeries(
+    connection,
+    sources.map((s) => ({
+      ...s,
+      tag: s.role,
+      color: 0,
+    })),
+    states,
+    hours,
+    { now, statisticsFrom: 0 },
+  );
+  return loaded.map((s) => ({ ...s, role: s.tag! }));
 }
-
-/** The value in force at `time`: the last point at or before it. */
-export function valueAt(series: Series, time: number): number | undefined {
-  let value: number | undefined;
-  for (const [t, v] of series.points) {
-    if (t > time) break;
-    value = v;
-  }
-  return value;
-}
-
-/** Round-number ticks covering [min, max], about `count` of them. */
-export function ticks(min: number, max: number, count = 4): number[] {
-  const raw = (max - min) / count || 1;
-  const power = 10 ** Math.floor(Math.log10(raw));
-  const step =
-    [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= raw) ??
-    10 * power;
-  const out: number[] = [];
-  // From the step at or below min up to the first step at or above max.
-  for (let v = Math.floor(min / step) * step; ; v += step) {
-    out.push(Number(v.toFixed(6)));
-    if (v >= max - 1e-9) break;
-  }
-  return out;
-}
-
-export const isTemperature = (unit: string) => ["°C", "°F", "K"].includes(unit);

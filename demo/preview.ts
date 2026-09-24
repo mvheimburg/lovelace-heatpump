@@ -168,6 +168,32 @@ const hass: HomeAssistant = {
       return () => {};
     },
     async sendMessagePromise<T>(msg: Record<string, unknown>): Promise<T> {
+      if (msg.type === "history/history_during_period") {
+        const from = Date.parse(String(msg.start_time));
+        const now = Date.now();
+        return Object.fromEntries(
+          (msg.entity_ids as string[]).map((id) => [
+            id,
+            Array.from({ length: 97 }, (_, i) => {
+              const time = from + ((now - from) * i) / 96;
+              const current = states[id];
+              const base = Number(current?.state);
+              const pressure =
+                current?.attributes.unit_of_measurement === "bar";
+              return {
+                s:
+                  i > 40 && i < 52
+                    ? "unavailable"
+                    : Number.isFinite(base)
+                      ? String(base + Math.sin(i / 8) * (pressure ? 0.12 : 2))
+                      : (current?.state ?? "unknown"),
+                lu: time / 1000,
+                a: current?.attributes,
+              };
+            }),
+          ]),
+        ) as T;
+      }
       return (
         msg.type === "config/entity_registry/list"
           ? entities

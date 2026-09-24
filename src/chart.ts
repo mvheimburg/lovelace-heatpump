@@ -5,7 +5,6 @@ const LEFT = 40,
   TOP = 24,
   BOTTOM = 196,
   H = 230,
-  /** Room right of the plot for the second scale. */
   GUTTER = 44;
 
 export interface ChartText {
@@ -39,8 +38,7 @@ function scale(series: Series[], pad: number) {
 }
 
 /**
- * Temperatures share the left scale; anything else (water pressure) gets the
- * right-hand scale in its own unit.
+ * Daily COP and outdoor temperature retain their custom daily chart.
  */
 export function chart(
   series: Series[],
@@ -94,8 +92,6 @@ export function chart(
     )
       xTicks.push(t);
   }
-  // A setpoint holds until it is changed, so it steps; measurements are lines.
-  const STEPPED = new Set(["flowTarget", "waterTarget"]);
   const path = (s: Series, sc: { min: number; max: number }) =>
     runs(s.points)
       .map((run) =>
@@ -104,9 +100,7 @@ export function chart(
             const at = `${x(t).toFixed(1)},${y(v, sc).toFixed(1)}`;
             // A lone reading between gaps is drawn as a dot.
             if (!i) return run.length === 1 ? `M${at} h0.01` : `M${at}`;
-            return STEPPED.has(s.role)
-              ? `L${x(t).toFixed(1)},${y(run[i - 1][1], sc).toFixed(1)} L${at}`
-              : `L${at}`;
+            return `L${at}`;
           })
           .join(" "),
       )

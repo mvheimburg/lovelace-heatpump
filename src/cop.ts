@@ -21,7 +21,6 @@ export async function loadCop(
   energy: EnergyData,
   outdoor: string | undefined,
   days: number,
-  /** The heat entities, so the legend can open their more-info. */
   entities: Partial<Record<"heating" | "water", string>> = {},
   now = Date.now(),
 ): Promise<Series[]> {
